@@ -11,7 +11,6 @@ import serial
 import time
 from enum import IntEnum
 
-from . import protocol
 from .transport import transact
 from .constants import OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
 
