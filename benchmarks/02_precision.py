@@ -17,22 +17,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mks_servo import MKSServo42D
+from mks_servo import Motor
 from mks_servo.constants import WorkMode
-from mks_servo.driver import (
+from mks_servo.profile import Profile, DriverSection, TransportSection
+from mks_servo.raw import (
     degrees_to_encoder_counts,
     encoder_counts_to_degrees,
 )
 from benchmarks._common import banner, load_config, make_run_dir
 
 
-def _setup(m: MKSServo42D) -> None:
-    m.set_work_mode(WorkMode.SR_vFOC)
-    m.set_subdivision(16)
+def _setup(m: Motor) -> None:
+    m._raw.set_work_mode(WorkMode.SR_vFOC)
+    m.microsteps = 16
     m.enable(True)
 
 
-def run_p1(m: MKSServo42D, run_dir: Path, iters: int = 100) -> None:
+def run_p1(m: Motor, run_dir: Path, iters: int = 100) -> None:
     """P1: repeatability — return to 90° from a random angle, measure residual."""
     banner(f"P1: repeatability (iters={iters})")
     target_deg = 90.0
@@ -42,13 +43,13 @@ def run_p1(m: MKSServo42D, run_dir: Path, iters: int = 100) -> None:
     rows = []
     for i in range(iters):
         rand_deg = random.uniform(-180.0, 180.0)
-        m.move_absolute_axis(degrees_to_encoder_counts(rand_deg), rpm=300, acc=10)
+        m._raw.move_absolute_axis(degrees_to_encoder_counts(rand_deg), rpm=300, acc=10)
         m.wait_until_idle(timeout=10.0)
 
-        m.move_absolute_axis(target_counts, rpm=300, acc=10)
+        m._raw.move_absolute_axis(target_counts, rpm=300, acc=10)
         m.wait_until_idle(timeout=10.0)
 
-        measured_counts = m.read_encoder_addition()
+        measured_counts = m.position_counts
         measured_deg = encoder_counts_to_degrees(measured_counts)
         residual_deg = measured_deg - target_deg
         rows.append({
@@ -82,25 +83,25 @@ def run_p1(m: MKSServo42D, run_dir: Path, iters: int = 100) -> None:
     print(f"  → {csv_path.name} + p1_repeatability_hist.png")
 
 
-def run_p3(m: MKSServo42D, run_dir: Path, iters: int = 20) -> None:
+def run_p3(m: Motor, run_dir: Path, iters: int = 20) -> None:
     """P3: error vs speed — final residual after a 1-turn move at varying RPM."""
     banner(f"P3: error vs speed (iters per RPM = {iters})")
     rpms = [50, 100, 300, 600, 1000, 1500, 2000, 3000]
     csv_path = run_dir / "p3_error_vs_speed.csv"
     rows = []
 
-    m.move_absolute_axis(0, rpm=300, acc=10)
+    m._raw.move_absolute_axis(0, rpm=300, acc=10)
     m.wait_until_idle(timeout=15.0)
 
     for rpm in rpms:
         for i in range(iters):
-            origin = m.read_encoder_addition()
+            origin = m.position_counts
             target = origin + degrees_to_encoder_counts(360.0)
             acc = 10 if rpm <= 800 else 50
-            m.move_absolute_axis(target, rpm=rpm, acc=acc)
+            m._raw.move_absolute_axis(target, rpm=rpm, acc=acc)
             m.wait_until_idle(timeout=20.0)
             time.sleep(0.05)
-            measured = m.read_encoder_addition()
+            measured = m.position_counts
             residual_counts = measured - target
             residual_deg = encoder_counts_to_degrees(residual_counts)
             rows.append({"rpm": rpm, "iter": i, "residual_deg": residual_deg})
@@ -135,21 +136,21 @@ def run_p3(m: MKSServo42D, run_dir: Path, iters: int = 20) -> None:
     print(f"  → {csv_path.name} + p3_error_vs_speed.png")
 
 
-def run_p5(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
+def run_p5(m: Motor, run_dir: Path, iters: int = 1) -> None:
     """P5: follow error — poll cmd 0x39 during a slow 1-turn move."""
     banner("P5: follow error (1 turn @ 60 RPM)")
     csv_path = run_dir / "p5_follow_error.csv"
     rows = []
 
-    origin = m.read_encoder_addition()
+    origin = m.position_counts
     target = origin + degrees_to_encoder_counts(360.0)
-    m.move_absolute_axis(target, rpm=60, acc=2)
+    m._raw.move_absolute_axis(target, rpm=60, acc=2)
     t0 = time.monotonic()
     deadline = t0 + 15.0
     while True:
-        err_units = m.read_angle_error()
+        err_units = m._raw.read_angle_error()
         err_deg = err_units * 360.0 / 51200
-        meas_deg = encoder_counts_to_degrees(m.read_encoder_addition() - origin)
+        meas_deg = encoder_counts_to_degrees(m.position_counts - origin)
         rows.append({"t_ms": int((time.monotonic() - t0) * 1000),
                      "measured_deg": meas_deg,
                      "follow_err_deg": err_deg})
@@ -183,16 +184,16 @@ def run_p5(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
     print(f"  samples={len(rows)} → {csv_path.name} + p5_follow_error.png")
 
 
-def run_v1(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
+def run_v1(m: Motor, run_dir: Path, iters: int = 1) -> None:
     """V1: visual calibration check — command 10 turns, count visually."""
     from benchmarks._common import confirm
     banner("V1: visual calibration check (10 turns)")
     confirm("Mark the shaft position (e.g. tape arrow). Then press ENTER to start.")
-    origin = m.read_encoder_addition()
+    origin = m.position_counts
     target = origin + 10 * 0x4000
-    m.move_absolute_axis(target, rpm=180, acc=20)
+    m._raw.move_absolute_axis(target, rpm=180, acc=20)
     m.wait_until_idle(timeout=30.0)
-    measured_counts = m.read_encoder_addition() - origin
+    measured_counts = m.position_counts - origin
     measured_turns = measured_counts / 0x4000
     print(f"  encoder reports {measured_turns:.4f} turns")
     confirm("Visually count the turns the pointer made. Did it match 10?")
@@ -216,10 +217,16 @@ def main() -> int:
     print(f"Output dir: {run_dir}")
 
     requested = [t.strip().upper() for t in args.tests.split(",")]
-    with MKSServo42D(
-        port=cfg["serial"]["port"], baud=cfg["serial"]["baud"],
-        addr=cfg["serial"]["slave_addr"], timeout=cfg["serial"]["timeout"],
-    ) as m:
+    prof = Profile(
+        id="bench_precision",
+        driver=DriverSection(model="servo42d", slave_addr=cfg["serial"]["slave_addr"]),
+        transport=TransportSection(
+            port=cfg["serial"]["port"],
+            baud=cfg["serial"]["baud"],
+            timeout_s=cfg["serial"]["timeout"],
+        ),
+    )
+    with Motor(prof) as m:
         _setup(m)
         try:
             for tid in requested:
