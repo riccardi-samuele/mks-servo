@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 import pytest
-from mks_servo.driver import MKSServo42D
+from mks_servo.raw import RawDriver as MKSServo42D
 
 
 @pytest.fixture
@@ -8,14 +8,14 @@ def fake_serial(mocker):
     """Patch serial.Serial to return a MagicMock; tests configure its .read return."""
     fake = MagicMock()
     fake.in_waiting = 0
-    mocker.patch("mks_servo.driver.serial.Serial", return_value=fake)
+    mocker.patch("mks_servo.raw.serial.Serial", return_value=fake)
     return fake
 
 
 def test_driver_opens_serial_with_correct_params(fake_serial):
     m = MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1)
     m.open()
-    from mks_servo import driver as drv
+    from mks_servo import raw as drv
     drv.serial.Serial.assert_called_once_with(
         port="/dev/ttyUSB0", baudrate=38400, bytesize=8, parity="N", stopbits=1, timeout=0.5,
     )
@@ -95,7 +95,7 @@ def test_read_angle_error_one_degree(fake_serial):
         assert m.read_angle_error() == 142
 
 
-from mks_servo.driver import MotorStatus
+from mks_servo.raw import MotorStatus
 
 
 def test_read_motor_status_stopped(fake_serial):

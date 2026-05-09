@@ -1,14 +1,20 @@
 """MKS SERVO42D RS485 driver and characterization library."""
-from .driver import MKSServo42D, MotorStatus
-from .constants import WorkMode, BaudRate, Direction, OpCode
+from .raw import RawDriver, MotorStatus
+from .constants import WorkMode, Direction, BaudRate, OpCode
 from .exceptions import (
-    MKSError, CommTimeout, ChecksumError, ProtocolError, MotorFault, CalibrationFailed,
+    MKSError, CommTimeout, ChecksumError, ProtocolError,
+    MotorFault, CalibrationFailed,
 )
+
+# Temporary back-compat alias; removed in Task 36.
+from .raw import RawDriver as MKSServo42D
 
 __version__ = "0.1.0"
 
 __all__ = [
-    "MKSServo42D", "MotorStatus",
-    "WorkMode", "BaudRate", "Direction", "OpCode",
-    "MKSError", "CommTimeout", "ChecksumError", "ProtocolError", "MotorFault", "CalibrationFailed",
+    "RawDriver", "MotorStatus",
+    "WorkMode", "Direction", "BaudRate", "OpCode",
+    "MKSError", "CommTimeout", "ChecksumError", "ProtocolError",
+    "MotorFault", "CalibrationFailed",
+    "MKSServo42D",
 ]

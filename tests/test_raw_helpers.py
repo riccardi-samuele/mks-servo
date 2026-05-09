@@ -1,4 +1,4 @@
-from mks_servo.driver import (
+from mks_servo.raw import (
     degrees_to_encoder_counts,
     encoder_counts_to_degrees,
     degrees_to_pulses,

@@ -16,7 +16,7 @@ class MotorStatus(IntEnum):
     CALIBRATING = 6
 
 
-class MKSServo42D:
+class RawDriver:
     def __init__(self, port: str, baud: int = 38400, addr: int = 1, timeout: float = 0.5) -> None:
         self.port = port
         self.baud = baud
@@ -46,7 +46,7 @@ class MKSServo42D:
             self._ser.close()
             self._ser = None
 
-    def __enter__(self) -> "MKSServo42D":
+    def __enter__(self) -> "RawDriver":
         self.open()
         return self
 
@@ -288,3 +288,7 @@ def encoder_counts_to_degrees(counts: int) -> float:
 
 def degrees_to_pulses(deg: float, microsteps: int = 16) -> int:
     return int(round(deg * NEMA17_FULL_STEPS * microsteps / 360))
+
+
+# Temporary alias kept for benchmarks during the v0.1.0 refactor; remove in Task 36.
+MKSServo42D = RawDriver

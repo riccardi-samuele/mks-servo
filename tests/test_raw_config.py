@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 import pytest
-from mks_servo.driver import MKSServo42D
+from mks_servo.raw import RawDriver as MKSServo42D
 from mks_servo.exceptions import CalibrationFailed
 
 
@@ -8,7 +8,7 @@ from mks_servo.exceptions import CalibrationFailed
 def fake_serial(mocker):
     fake = MagicMock()
     fake.in_waiting = 0
-    mocker.patch("mks_servo.driver.serial.Serial", return_value=fake)
+    mocker.patch("mks_servo.raw.serial.Serial", return_value=fake)
     return fake
 
 
