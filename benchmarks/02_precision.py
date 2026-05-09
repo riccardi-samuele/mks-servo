@@ -155,6 +155,13 @@ def run_p5(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
             break
         time.sleep(0.02)
 
+    # Safety: if we exited via deadline (not target reached), make sure motor stops.
+    try:
+        m.wait_until_idle(timeout=3.0)
+    except Exception:
+        m.emergency_stop()
+        time.sleep(0.5)
+
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["t_ms", "measured_deg", "follow_err_deg"])
         w.writeheader()
