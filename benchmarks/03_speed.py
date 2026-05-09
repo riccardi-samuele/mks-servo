@@ -67,7 +67,57 @@ def run_s1(m: MKSServo42D, run_dir: Path) -> None:
     plt.close(fig)
 
 
-TEST_FUNCS = {"S1": run_s1}
+def run_s2(m: MKSServo42D, run_dir: Path) -> None:
+    """S2: acceleration curve — sample read_speed_rpm() while ramping to 2000 RPM."""
+    banner("S2: acceleration curve (target 2000 RPM)")
+    m.enable(False)
+    m.set_work_mode(WorkMode.SR_vFOC)
+    m.enable(True)
+    target_rpm = 2000
+    accs = [1, 50, 100, 200, 255]
+    csv_path = run_dir / "s2_accel.csv"
+    rows = []
+
+    for acc in accs:
+        m.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        time.sleep(1.0)
+        m.move_speed(rpm=target_rpm, acc=acc, direction=Direction.CW)
+        t0 = time.monotonic()
+        while True:
+            v = abs(m.read_speed_rpm())
+            t = (time.monotonic() - t0) * 1000
+            rows.append({"acc": acc, "t_ms": int(t), "rpm": v})
+            if v >= target_rpm or t > 8000:
+                break
+            time.sleep(0.01)
+        m.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        time.sleep(1.5)
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["acc", "t_ms", "rpm"])
+        w.writeheader()
+        w.writerows(rows)
+
+    fig, ax = plt.subplots()
+    for acc in accs:
+        sub = [r for r in rows if r["acc"] == acc]
+        ax.plot([r["t_ms"] for r in sub], [r["rpm"] for r in sub], label=f"acc={acc}")
+        if acc < 256:
+            t_max = max(r["t_ms"] for r in sub)
+            ts = np.linspace(0, t_max, 50)
+            vs = np.minimum(target_rpm, ts / ((256 - acc) * 0.05))
+            ax.plot(ts, vs, "--", alpha=0.4)
+    ax.set_xlabel("time [ms]")
+    ax.set_ylabel("measured RPM")
+    ax.set_title("S2: ramp to 2000 RPM (solid=measured, dashed=theoretical)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(run_dir / "plots" / "s2_accel.png", dpi=120)
+    plt.close(fig)
+
+
+TEST_FUNCS = {"S1": run_s1, "S2": run_s2}
 
 
 def main() -> int:
