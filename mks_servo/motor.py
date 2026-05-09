@@ -313,6 +313,32 @@ class Motor:
             self.profile.origin.set_in_firmware = True
             self.profile.origin.encoder_offset_counts = 0
 
+    def move_relative(self, delta_deg: float, *,
+                      rpm: Optional[int] = None,
+                      acc: Optional[int] = None,
+                      blocking: bool = True,
+                      timeout: Optional[float] = None) -> None:
+        """Move by a delta in output-axis degrees. Reads current position,
+        adds delta, calls write(). Inherits all limit checks from write()."""
+        self._require_attached()
+        current = self.read()
+        self.write(current + delta_deg, rpm=rpm, acc=acc,
+                   blocking=blocking, timeout=timeout)
+
+    def enable(self, state: bool = True) -> None:
+        """Enable (True) or disable (False) the motor (cmd 0xF3)."""
+        self._require_attached()
+        self._raw.enable(bool(state))
+
+    def disable(self) -> None:
+        """Alias for enable(False)."""
+        self.enable(False)
+
+    def wait_until_idle(self, timeout: Optional[float] = None) -> None:
+        """Block until the motor reports it has stopped, or raise on timeout."""
+        self._require_attached()
+        self._raw.wait_until_idle(timeout=timeout)
+
     # ─── Level 1 properties ───────────────────────────────────────────
     @property
     def work_current_ma(self) -> int:
