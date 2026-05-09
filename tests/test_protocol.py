@@ -1,5 +1,6 @@
 import pytest
-from mks_servo.protocol import checksum8, build_frame
+from mks_servo.protocol import checksum8, build_frame, parse_frame
+from mks_servo.exceptions import ChecksumError, ProtocolError
 
 
 def test_checksum_manual_example_calibrate():
@@ -44,3 +45,33 @@ def test_build_frame_rejects_addr_out_of_range():
 def test_build_frame_rejects_code_out_of_range():
     with pytest.raises(ValueError):
         build_frame(addr=1, code=300)
+
+
+def test_parse_frame_encoder_response():
+    """Manual §7.3: 'FB 01 30 FF FF FF FF 22 69 B3'."""
+    addr, code, payload = parse_frame(bytes.fromhex("FB 01 30 FF FF FF FF 22 69 B3"))
+    assert addr == 0x01
+    assert code == 0x30
+    assert payload == bytes.fromhex("FF FF FF FF 22 69")
+
+
+def test_parse_frame_status_only():
+    """Calibrate response: 'FB 01 80 01 7D'."""
+    addr, code, payload = parse_frame(bytes.fromhex("FB 01 80 01 7D"))
+    assert (addr, code, payload) == (0x01, 0x80, b"\x01")
+
+
+def test_parse_frame_bad_checksum():
+    bad = bytes.fromhex("FB 01 80 01 00")  # last byte should be 0x7D
+    with pytest.raises(ChecksumError):
+        parse_frame(bad)
+
+
+def test_parse_frame_bad_header():
+    with pytest.raises(ProtocolError):
+        parse_frame(bytes.fromhex("AA 01 80 01 00"))
+
+
+def test_parse_frame_too_short():
+    with pytest.raises(ProtocolError):
+        parse_frame(bytes.fromhex("FB 01"))
