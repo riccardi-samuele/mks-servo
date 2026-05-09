@@ -202,6 +202,37 @@ class MKSServo42D:
         payload = self._txn(OpCode.SAVE_SPEED_STATE, bytes([state]), expect_payload_len=1)
         return payload == b"\x02"
 
+    def move_relative_pulses(self, pulses: int, rpm: int, acc: int = 2, direction=None) -> bool:
+        """Cmd 0xFD: relative move by pulse count."""
+        from .constants import Direction as _Dir
+        if direction is None:
+            direction = _Dir.CW
+        if not 0 <= pulses <= 0xFFFFFFFF:
+            raise ValueError(f"pulses must be 0..2^32-1, got {pulses}")
+        if not 0 <= rpm <= 3000:
+            raise ValueError(f"rpm must be 0..3000, got {rpm}")
+        if not 0 <= acc <= 255:
+            raise ValueError(f"acc must be 0..255, got {acc}")
+        dir_bit = 0x80 if direction == _Dir.CCW else 0x00
+        b4 = dir_bit | ((rpm >> 8) & 0x0F)
+        b5 = rpm & 0xFF
+        data = bytes([b4, b5, acc]) + pulses.to_bytes(4, "big", signed=False)
+        payload = self._txn(OpCode.MOVE_REL_PULSES, data, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def move_absolute_pulses(self, pulses: int, rpm: int, acc: int = 2) -> bool:
+        """Cmd 0xFE: absolute move to a signed pulse coordinate (int32 BE)."""
+        if not -(2**31) <= pulses <= 2**31 - 1:
+            raise ValueError(f"pulses out of int32 range: {pulses}")
+        if not 0 <= rpm <= 3000:
+            raise ValueError(f"rpm must be 0..3000, got {rpm}")
+        if not 0 <= acc <= 255:
+            raise ValueError(f"acc must be 0..255, got {acc}")
+        speed_bytes = rpm.to_bytes(2, "big", signed=False)
+        data = speed_bytes + bytes([acc]) + pulses.to_bytes(4, "big", signed=True)
+        payload = self._txn(OpCode.MOVE_ABS_PULSES, data, expect_payload_len=1)
+        return payload == b"\x01"
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))

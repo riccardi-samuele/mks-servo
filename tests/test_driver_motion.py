@@ -62,3 +62,30 @@ def test_save_speed_mode_state_clean(fake_serial):
         m.save_speed_mode_state(save=False)
     sent = fake_serial.write.call_args[0][0]
     assert sent[:4] == bytes.fromhex("FA 01 FF CA")
+
+
+def test_move_relative_pulses_manual_example(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0xFD, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.move_relative_pulses(pulses=250, rpm=320, acc=2, direction=Direction.CW)
+    sent = fake_serial.write.call_args[0][0]
+    expected_body = bytes.fromhex("FA 01 FD 01 40 02 00 00 00 FA")
+    assert sent[:-1] == expected_body
+
+
+def test_move_relative_pulses_ccw(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0xFD, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.move_relative_pulses(pulses=250, rpm=320, acc=2, direction=Direction.CCW)
+    sent = fake_serial.write.call_args[0][0]
+    assert sent[3] & 0x80 == 0x80
+
+
+def test_move_absolute_pulses_negative(fake_serial):
+    """Manual §6.7: target -0x4000 pulses, speed=600, acc=2."""
+    fake_serial.read.return_value = _resp(1, 0xFE, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.move_absolute_pulses(pulses=-0x4000, rpm=600, acc=2)
+    sent = fake_serial.write.call_args[0][0]
+    expected_body = bytes.fromhex("FA 01 FE 02 58 02 FF FF C0 00")
+    assert sent[:-1] == expected_body
