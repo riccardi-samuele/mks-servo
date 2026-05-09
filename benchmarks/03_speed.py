@@ -117,7 +117,64 @@ def run_s2(m: MKSServo42D, run_dir: Path) -> None:
     plt.close(fig)
 
 
-TEST_FUNCS = {"S1": run_s1, "S2": run_s2}
+def run_s3(m: MKSServo42D, run_dir: Path) -> None:
+    """S3: stall threshold — 10-turn move at increasing RPM in SR_CLOSE mode."""
+    banner("S3: stall threshold")
+    m.enable(False)
+    m.set_work_mode(WorkMode.SR_CLOSE)
+    m.set_subdivision(16)
+    m.enable(True)
+    rpms = [500, 1000, 1300, 1500, 1700, 2000, 2500]
+    csv_path = run_dir / "s3_stall.csv"
+    rows = []
+
+    m.move_absolute_axis(0, rpm=300, acc=20)
+    m.wait_until_idle(timeout=15.0)
+
+    for rpm in rpms:
+        try:
+            origin = m.read_encoder_addition()
+            target = origin + 10 * 0x4000
+            m.move_absolute_axis(target, rpm=rpm, acc=50)
+            m.wait_until_idle(timeout=30.0)
+            time.sleep(0.3)
+            measured = m.read_encoder_addition()
+            residual_counts = measured - target
+            residual_deg = encoder_counts_to_degrees(residual_counts)
+            angle_err_units = m.read_angle_error()
+            print(f"  rpm={rpm:>4}  residual={residual_deg:+.4f}°  angle_err={angle_err_units}")
+            rows.append({"rpm": rpm, "residual_deg": residual_deg,
+                         "angle_err_units": angle_err_units, "ok": abs(residual_deg) < 1.0})
+        except Exception as e:
+            print(f"  rpm={rpm}  FAILED: {e}")
+            rows.append({"rpm": rpm, "residual_deg": float("nan"),
+                         "angle_err_units": -1, "ok": False})
+            try:
+                m.release_protection()
+                m.move_absolute_axis(0, rpm=300, acc=20)
+                m.wait_until_idle(timeout=15.0)
+            except Exception:
+                pass
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["rpm", "residual_deg", "angle_err_units", "ok"])
+        w.writeheader()
+        w.writerows(rows)
+
+    fig, ax = plt.subplots()
+    ax.plot([r["rpm"] for r in rows], [abs(r["residual_deg"]) for r in rows], marker="o")
+    ax.axhline(1.0, color="r", linestyle="--", alpha=0.5, label="1° threshold")
+    ax.set_xlabel("RPM")
+    ax.set_ylabel("|residual after 10 turns| [deg]")
+    ax.set_title("S3: stall threshold (SR_CLOSE)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(run_dir / "plots" / "s3_stall.png", dpi=120)
+    plt.close(fig)
+
+
+TEST_FUNCS = {"S1": run_s1, "S2": run_s2, "S3": run_s3}
 
 
 def main() -> int:
