@@ -111,7 +111,9 @@ class Motor:
             m.write(45)
     """
 
-    def __init__(self, profile: Profile, *, raw: Optional[RawDriver] = None):
+    def __init__(self, profile: Profile, *,
+                 raw: Optional[RawDriver] = None,
+                 auto_save: bool = False):
         self.profile = profile
         self.raw: Optional[RawDriver] = raw
         self._owns_raw: bool = raw is None
@@ -120,6 +122,8 @@ class Motor:
         self._position_limits: tuple[Optional[float], Optional[float]] = (
             profile.limits.position.min_deg, profile.limits.position.max_deg)
         self._speed_limit_rpm: Optional[int] = profile.limits.speed.max_rpm_safe
+        self._auto_save = auto_save
+        self._auto_save_warned = False
 
     # ─── Constructors ──────────────────────────────────────────────────
     @classmethod
@@ -197,6 +201,24 @@ class Motor:
             raise MotorNotAttached(
                 "call attach() before using the motor (or use a `with` block)"
             )
+
+    def _maybe_save(self) -> None:
+        """If auto_save is on and profile has a path, persist the YAML.
+        No-op (with one-time warning) if profile has no path."""
+        if not self._auto_save:
+            return
+        if self.profile.path is None:
+            if not self._auto_save_warned:
+                _logger.warning(
+                    "auto_save enabled but profile has no path "
+                    "(template-loaded or in-memory) — saves are no-ops"
+                )
+                self._auto_save_warned = True
+            return
+        try:
+            self.profile.save()
+        except Exception as e:
+            _logger.warning("auto_save failed: %s", e)
 
     # ─── Level 0 motion ───────────────────────────────────────────────
     def write(self, angle_deg: float, *,
@@ -317,6 +339,7 @@ class Motor:
             self.raw.set_zero_point()
             self.profile.origin.set_in_firmware = True
             self.profile.origin.encoder_offset_counts = 0
+        self._maybe_save()
 
     def move_relative(self, delta_deg: float, *,
                       rpm: Optional[int] = None,
@@ -363,6 +386,7 @@ class Motor:
                                 message=f"current must be >= 0, got {value}")
         self.raw.set_work_current_ma(value)
         self.profile.config.work_current_ma = value
+        self._maybe_save()
 
     @property
     def microsteps(self) -> int:
@@ -377,6 +401,7 @@ class Motor:
             raise ValueError(f"microsteps must be in 1..256, got {value}")
         self.raw.set_subdivision(value)
         self.profile.config.microsteps = value
+        self._maybe_save()
 
     @property
     def direction(self):
@@ -388,6 +413,7 @@ class Motor:
         self._require_attached()
         self.raw.set_direction(value)
         self.profile.config.direction = value
+        self._maybe_save()
 
     @property
     def mode(self):
@@ -408,6 +434,7 @@ class Motor:
         # in-memory profile after the reset.
         self.raw.set_subdivision(self.profile.config.microsteps)
         self.raw.set_work_current_ma(self.profile.config.work_current_ma)
+        self._maybe_save()
 
     @property
     def hold_current_pct(self) -> int:
@@ -424,6 +451,7 @@ class Motor:
             )
         self.raw.set_hold_current_pct(value)
         self.profile.config.hold_current_pct = value
+        self._maybe_save()
 
     # Read-only telemetry
     @property
@@ -464,6 +492,7 @@ class Motor:
         if not isinstance(value, tuple) or len(value) != 2:
             raise ValueError("position_limits must be a 2-tuple (min, max)")
         self._position_limits = value
+        self._maybe_save()
 
     @property
     def speed_limit_rpm(self):
@@ -472,6 +501,7 @@ class Motor:
     @speed_limit_rpm.setter
     def speed_limit_rpm(self, value) -> None:
         self._speed_limit_rpm = None if value is None else int(value)
+        self._maybe_save()
 
     def calibrate(self, *,
                   current_ma: int = 3000,
@@ -523,6 +553,7 @@ class Motor:
                 _time.sleep(_CALIB_POLL_INTERVAL_S)
 
             self.profile.characterization.last_calibrated = _dt.now(_tz.utc)
+            self._maybe_save()
         finally:
             # Always restore previous current — best effort, swallow errors.
             try:
@@ -541,6 +572,7 @@ class Motor:
         self.raw.restart()
         _time.sleep(2.0)
         self._apply_profile_config()
+        self._maybe_save()
 
     def restore_defaults(self) -> None:
         """Reset driver to factory defaults (cmd 0x3F).
