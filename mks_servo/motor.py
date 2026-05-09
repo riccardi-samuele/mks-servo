@@ -372,3 +372,51 @@ class Motor:
             )
         self._raw.set_hold_current_pct(value)
         self.profile.config.hold_current_pct = value
+
+    # Read-only telemetry
+    @property
+    def position_counts(self) -> int:
+        """Cumulative encoder counts (raw, no gear/origin applied)."""
+        self._require_attached()
+        return self._raw.read_encoder_addition()
+
+    @property
+    def speed_rpm(self) -> int:
+        """Signed RPM (positive = CCW, negative = CW per firmware convention)."""
+        self._require_attached()
+        return self._raw.read_speed_rpm()
+
+    @property
+    def status(self):
+        """Current MotorStatus enum value."""
+        self._require_attached()
+        return self._raw.read_motor_status()
+
+    @property
+    def enabled(self) -> bool:
+        """True if the motor is currently enabled.
+
+        Note: this reads the cached `_enabled` flag inside RawDriver, set by
+        the last `enable(...)` call. There is no firmware-side query for this.
+        """
+        self._require_attached()
+        return bool(getattr(self._raw, "_enabled", False))
+
+    # Runtime limit overrides (in-memory, NOT persisted to profile)
+    @property
+    def position_limits(self) -> tuple:
+        return self._position_limits
+
+    @position_limits.setter
+    def position_limits(self, value: tuple) -> None:
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise ValueError("position_limits must be a 2-tuple (min, max)")
+        self._position_limits = value
+
+    @property
+    def speed_limit_rpm(self):
+        return self._speed_limit_rpm
+
+    @speed_limit_rpm.setter
+    def speed_limit_rpm(self, value) -> None:
+        self._speed_limit_rpm = None if value is None else int(value)
