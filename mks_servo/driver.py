@@ -133,6 +133,27 @@ class MKSServo42D:
         payload = self._txn(OpCode.RELEASE_PROTECTION, expect_payload_len=1)
         return payload == b"\x01"
 
+    def set_work_mode(self, mode) -> bool:
+        """Cmd 0x82: set work mode."""
+        payload = self._txn(OpCode.SET_WORK_MODE, bytes([int(mode)]), expect_payload_len=1)
+        return payload == b"\x01"
+
+    def set_work_current_ma(self, current_ma: int) -> bool:
+        """Cmd 0x83: working current in mA. SERVO42D max = 3000, must be > 0."""
+        if not 0 < current_ma <= 3000:
+            raise ValueError(f"current_ma must be 1..3000 (SERVO42D), got {current_ma}")
+        data = current_ma.to_bytes(2, "big", signed=False)
+        payload = self._txn(OpCode.SET_WORK_CURRENT, data, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def set_subdivision(self, microsteps: int) -> bool:
+        """Cmd 0x84: microsteps. 1..256 (256 sent as 0x00 by manual convention)."""
+        if not 1 <= microsteps <= 256:
+            raise ValueError(f"microsteps must be 1..256, got {microsteps}")
+        byte_val = 0x00 if microsteps == 256 else microsteps
+        payload = self._txn(OpCode.SET_SUBDIVISION, bytes([byte_val]), expect_payload_len=1)
+        return payload == b"\x01"
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))

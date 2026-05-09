@@ -54,3 +54,43 @@ def test_release_protection(fake_serial):
     fake_serial.read.return_value = _resp(1, 0x3D, b"\x01")
     with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
         assert m.release_protection() is True
+
+
+from mks_servo.constants import WorkMode
+
+
+def test_set_work_mode_sends_correct_byte(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0x82, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        assert m.set_work_mode(WorkMode.SR_vFOC) is True
+    sent = fake_serial.write.call_args[0][0]
+    assert sent[:4] == bytes.fromhex("FA 01 82 05")
+
+
+def test_set_work_current_ma_encodes_uint16_be(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0x83, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        assert m.set_work_current_ma(1600) is True
+    sent = fake_serial.write.call_args[0][0]
+    assert sent[:5] == bytes.fromhex("FA 01 83 06 40")
+
+
+def test_set_work_current_ma_clamps_max(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0x83, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        with pytest.raises(ValueError):
+            m.set_work_current_ma(5000)
+
+
+def test_set_subdivision(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0x84, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        assert m.set_subdivision(64) is True
+    sent = fake_serial.write.call_args[0][0]
+    assert sent[:4] == bytes.fromhex("FA 01 84 40")
+
+
+def test_set_subdivision_rejects_zero(fake_serial):
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        with pytest.raises(ValueError):
+            m.set_subdivision(0)
