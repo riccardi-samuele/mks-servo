@@ -1,3 +1,12 @@
+"""Direct mapping of MKS SERVO42D RS485 opcodes to Python methods.
+
+`RawDriver` is the low-level driver: each public method corresponds to a
+single firmware command (ping, set_work_mode, move_absolute_axis, …) with no
+profile awareness, no software limits, no unit conversions beyond what the
+firmware itself encodes. Higher-level use cases should go through the `Motor`
+class (added in later v0.1.0 tasks); this module is kept available for
+power-users who need protocol-level access.
+"""
 import serial
 import time
 from enum import IntEnum
@@ -17,6 +26,12 @@ class MotorStatus(IntEnum):
 
 
 class RawDriver:
+    """1:1 wrapper around the MKS SERVO42D firmware command set (V1.0.6 manual).
+
+    Opens a serial transport in `__init__`, exposes one public method per opcode.
+    Not aware of profiles or user-space limits — that lives in `Motor`.
+    """
+
     def __init__(self, port: str, baud: int = 38400, addr: int = 1, timeout: float = 0.5) -> None:
         self.port = port
         self.baud = baud
@@ -179,7 +194,6 @@ class RawDriver:
             "slave_addr": payload[11],
             "raw": bytes(payload),
         }
-
 
     def emergency_stop(self) -> bool:
         """Cmd 0xF7: stop everything immediately. Above 1000 RPM use stop_speed_mode instead."""

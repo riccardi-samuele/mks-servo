@@ -7,7 +7,7 @@ from .exceptions import (
 )
 
 # Temporary back-compat alias; removed in Task 36.
-from .raw import RawDriver as MKSServo42D
+MKSServo42D = RawDriver
 
 __version__ = "0.1.0"
 
@@ -16,5 +16,5 @@ __all__ = [
     "WorkMode", "Direction", "BaudRate", "OpCode",
     "MKSError", "CommTimeout", "ChecksumError", "ProtocolError",
     "MotorFault", "CalibrationFailed",
-    "MKSServo42D",
+    "MKSServo42D",  # back-compat alias; remove in Task 36
 ]
