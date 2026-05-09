@@ -133,7 +133,48 @@ def run_p3(m: MKSServo42D, run_dir: Path, iters: int = 20) -> None:
     print(f"  → {csv_path.name} + p3_error_vs_speed.png")
 
 
-TEST_FUNCS = {"P1": run_p1, "P3": run_p3}
+def run_p5(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
+    """P5: follow error — poll cmd 0x39 during a slow 1-turn move."""
+    banner("P5: follow error (1 turn @ 60 RPM)")
+    csv_path = run_dir / "p5_follow_error.csv"
+    rows = []
+
+    origin = m.read_encoder_addition()
+    target = origin + degrees_to_encoder_counts(360.0)
+    m.move_absolute_axis(target, rpm=60, acc=2)
+    t0 = time.monotonic()
+    deadline = t0 + 15.0
+    while True:
+        err_units = m.read_angle_error()
+        err_deg = err_units * 360.0 / 51200
+        meas_deg = encoder_counts_to_degrees(m.read_encoder_addition() - origin)
+        rows.append({"t_ms": int((time.monotonic() - t0) * 1000),
+                     "measured_deg": meas_deg,
+                     "follow_err_deg": err_deg})
+        if abs(meas_deg - 360.0) < 0.05 or time.monotonic() > deadline:
+            break
+        time.sleep(0.02)
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["t_ms", "measured_deg", "follow_err_deg"])
+        w.writeheader()
+        w.writerows(rows)
+
+    fig, ax = plt.subplots()
+    ts = [r["t_ms"] for r in rows]
+    errs = [r["follow_err_deg"] for r in rows]
+    ax.plot(ts, errs)
+    ax.set_xlabel("time [ms]")
+    ax.set_ylabel("follow error [deg]")
+    ax.set_title("P5: follow error during 1-turn @ 60 RPM, acc=2")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(run_dir / "plots" / "p5_follow_error.png", dpi=120)
+    plt.close(fig)
+    print(f"  samples={len(rows)} → {csv_path.name} + p5_follow_error.png")
+
+
+TEST_FUNCS = {"P1": run_p1, "P3": run_p3, "P5": run_p5}
 
 
 def main() -> int:
