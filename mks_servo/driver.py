@@ -1,7 +1,18 @@
 import serial
+from enum import IntEnum
 
 from . import protocol
 from .constants import OpCode
+
+
+class MotorStatus(IntEnum):
+    QUERY_FAIL = 0
+    STOPPED = 1
+    SPEED_UP = 2
+    SPEED_DOWN = 3
+    FULL_SPEED = 4
+    HOMING = 5
+    CALIBRATING = 6
 
 
 class MKSServo42D:
@@ -84,3 +95,8 @@ class MKSServo42D:
         """Cmd 0x39: angle error in driver units (51200 = 360°)."""
         payload = self._txn(OpCode.READ_ANGLE_ERROR, expect_payload_len=4)
         return int.from_bytes(payload, "big", signed=True)
+
+    def read_motor_status(self) -> MotorStatus:
+        """Cmd 0xF1: motor running status."""
+        payload = self._txn(OpCode.QUERY_STATUS, expect_payload_len=1)
+        return MotorStatus(payload[0])

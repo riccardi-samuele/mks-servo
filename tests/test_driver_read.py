@@ -93,3 +93,22 @@ def test_read_angle_error_one_degree(fake_serial):
     fake_serial.read.return_value = body + bytes([crc])
     with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
         assert m.read_angle_error() == 142
+
+
+from mks_servo.driver import MotorStatus
+
+
+def test_read_motor_status_stopped(fake_serial):
+    body = bytes.fromhex("FB 01 F1 01")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_motor_status() == MotorStatus.STOPPED
+
+
+def test_read_motor_status_full_speed(fake_serial):
+    body = bytes.fromhex("FB 01 F1 04")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_motor_status() == MotorStatus.FULL_SPEED
