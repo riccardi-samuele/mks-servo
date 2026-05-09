@@ -529,3 +529,27 @@ class Motor:
                 self._raw.set_work_current_ma(previous_current)
             except Exception:
                 pass
+
+    def restart(self) -> None:
+        """Restart the driver (cmd 0x41) and re-apply the profile config.
+
+        The driver takes ~2s to come back online; this method blocks for that
+        sleep before re-asserting profile-driven settings (work_mode,
+        microsteps, work_current_ma).
+        """
+        self._require_attached()
+        self._raw.restart()
+        _time.sleep(2.0)
+        self._apply_profile_config()
+
+    def restore_defaults(self) -> None:
+        """Reset driver to factory defaults (cmd 0x3F).
+
+        WARNING: erases mode, current, microsteps, address, baud rate, and
+        the calibration. The profile is NOT updated by this call — it still
+        reflects pre-reset state. After calling this, you typically want to
+        re-attach (or re-call attach() / calibrate()) to bring the driver back
+        in sync with the profile.
+        """
+        self._require_attached()
+        self._raw.restore_defaults()
