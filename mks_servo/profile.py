@@ -7,7 +7,7 @@ validation, lookup, and saving are added by later v0.1.0 tasks.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -292,6 +292,29 @@ def _profile_load(cls, name_or_path):
 
 
 Profile.load = classmethod(_profile_load)  # type: ignore[assignment]
+
+
+def _profile_from_template(cls, template_name: str, *, id: str) -> "Profile":
+    """Construct a Profile from a built-in template.
+
+    The returned profile has `path=None` (no auto-save target). The `id` and
+    `created_at` are overridden; everything else is copied from the template.
+    """
+    template_path = _builtin_templates_dir() / f"{template_name}.yaml"
+    if not template_path.exists():
+        raise ProfileError(
+            f"template not found: {template_name!r} "
+            f"(available in {_builtin_templates_dir()})"
+        )
+    prof = _load_yaml_path(template_path)
+    prof.id = id
+    prof.path = None
+    prof.created_at = datetime.now(timezone.utc)
+    prof.updated_at = prof.created_at
+    return prof
+
+
+Profile.from_template = classmethod(_profile_from_template)  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------

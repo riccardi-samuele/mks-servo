@@ -1,0 +1,45 @@
+# Template for a generic NEMA17 bipolar 2A stepper on MKS SERVO42D.
+# Copy this and edit `id`, `slave_addr`, and any limits/mechanical fields
+# to match your motor. Use `mks-servo profile from-template` to copy.
+schema_version: 1
+id: motor
+description: NEMA17 bipolar 2A — generic template
+driver:
+  model: servo42d
+  firmware_min: "1.0.6"
+  slave_addr: 1
+transport:
+  port: null
+  baud: 38400
+  timeout_s: 3.0
+config:
+  mode: SR_vFOC
+  microsteps: 16
+  work_current_ma: 1500
+  hold_current_pct: 50
+  direction: CW
+limits:
+  position:
+    min_deg: null
+    max_deg: null
+    on_violation: reject
+  speed:
+    max_rpm_safe: 1300
+    on_violation: clamp
+  current:
+    max_ma: 2500
+origin:
+  set_in_firmware: true
+  encoder_offset_counts: 0
+mechanical:
+  motor_model: NEMA17
+  full_steps_per_rev: 200
+  gear_ratio: 1.0
+characterization:
+  last_calibrated: null
+  precision:
+    sigma_deg: null
+    peak_deg: null
+  speed:
+    max_measured_rpm: null
+    voltage_v: null
