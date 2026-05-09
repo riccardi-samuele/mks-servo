@@ -174,12 +174,31 @@ def run_p5(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
     print(f"  samples={len(rows)} → {csv_path.name} + p5_follow_error.png")
 
 
-TEST_FUNCS = {"P1": run_p1, "P3": run_p3, "P5": run_p5}
+def run_v1(m: MKSServo42D, run_dir: Path, iters: int = 1) -> None:
+    """V1: visual calibration check — command 10 turns, count visually."""
+    from benchmarks._common import confirm
+    banner("V1: visual calibration check (10 turns)")
+    confirm("Mark the shaft position (e.g. tape arrow). Then press ENTER to start.")
+    origin = m.read_encoder_addition()
+    target = origin + 10 * 0x4000
+    m.move_absolute_axis(target, rpm=180, acc=20)
+    m.wait_until_idle(timeout=30.0)
+    measured_counts = m.read_encoder_addition() - origin
+    measured_turns = measured_counts / 0x4000
+    print(f"  encoder reports {measured_turns:.4f} turns")
+    confirm("Visually count the turns the pointer made. Did it match 10?")
+    (run_dir / "v1_visual_check.txt").write_text(
+        f"Commanded: 10 turns\nEncoder reports: {measured_turns:.6f} turns\n"
+        "Visual: confirmed by user (manual)\n"
+    )
+
+
+TEST_FUNCS = {"P1": run_p1, "P3": run_p3, "P5": run_p5, "V1": run_v1}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tests", default="P1", help="Comma-separated test ids")
+    parser.add_argument("--tests", default="P1,P3,P5,V1", help="Comma-separated test ids")
     parser.add_argument("--iters", type=int, default=100)
     args = parser.parse_args()
 
