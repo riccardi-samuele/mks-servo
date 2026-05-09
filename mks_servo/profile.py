@@ -255,3 +255,72 @@ def _profile_load(cls, name_or_path):
 
 
 Profile.load = classmethod(_profile_load)  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Validation — Task 6: collect ALL violations before raising.
+# ---------------------------------------------------------------------------
+
+import re  # noqa: E402
+
+_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+_BAUDS = {9600, 19200, 38400, 57600, 115200}
+_KNOWN_MODELS = {"servo42d"}
+_VIOLATIONS = ("reject", "clamp", "warn")
+
+
+def _profile_validate(self) -> None:
+    v: list[str] = []
+
+    if not self.id or not _ID_RE.match(self.id):
+        v.append(f"id must match {_ID_RE.pattern}, got {self.id!r}")
+    if self.schema_version != 1:
+        v.append(f"schema_version must be 1, got {self.schema_version}")
+
+    if self.driver.model not in _KNOWN_MODELS:
+        v.append(f"driver.model {self.driver.model!r} not in {sorted(_KNOWN_MODELS)}")
+    if not (1 <= self.driver.slave_addr <= 247):
+        v.append(f"driver.slave_addr must be in 1..247, got {self.driver.slave_addr}")
+
+    if self.transport.baud not in _BAUDS:
+        v.append(f"transport.baud must be in {sorted(_BAUDS)}, got {self.transport.baud}")
+    if self.transport.timeout_s <= 0:
+        v.append(f"transport.timeout_s must be > 0, got {self.transport.timeout_s}")
+
+    c = self.config
+    if not (1 <= c.microsteps <= 256):
+        v.append(f"config.microsteps must be in 1..256, got {c.microsteps}")
+    if not (0 <= c.work_current_ma <= self.limits.current.max_ma):
+        v.append(f"config.work_current_ma must be in 0..limits.current.max_ma "
+                 f"({self.limits.current.max_ma}), got {c.work_current_ma}")
+    if not (10 <= c.hold_current_pct <= 90) or (c.hold_current_pct % 10 != 0):
+        v.append(f"config.hold_current_pct must be in 10..90 step 10, got {c.hold_current_pct}")
+    if not isinstance(c.mode, WorkMode):
+        v.append(f"config.mode must be a WorkMode enum, got {c.mode!r}")
+    if not isinstance(c.direction, Direction):
+        v.append(f"config.direction must be a Direction enum, got {c.direction!r}")
+
+    pos = self.limits.position
+    if (pos.min_deg is None) != (pos.max_deg is None):
+        v.append("limits.position.min_deg and max_deg must both be set or both null")
+    if pos.min_deg is not None and pos.max_deg is not None and pos.min_deg >= pos.max_deg:
+        v.append(f"limits.position min_deg < max_deg required, got {pos.min_deg}/{pos.max_deg}")
+    if pos.on_violation not in _VIOLATIONS:
+        v.append(f"limits.position.on_violation must be in {_VIOLATIONS}")
+
+    if self.limits.speed.on_violation not in _VIOLATIONS:
+        v.append(f"limits.speed.on_violation must be in {_VIOLATIONS}")
+    if self.limits.current.max_ma <= 0:
+        v.append(f"limits.current.max_ma must be > 0, got {self.limits.current.max_ma}")
+
+    if self.mechanical.gear_ratio <= 0:
+        v.append(f"mechanical.gear_ratio must be > 0, got {self.mechanical.gear_ratio}")
+    if self.mechanical.full_steps_per_rev <= 0:
+        v.append(f"mechanical.full_steps_per_rev must be > 0, got "
+                 f"{self.mechanical.full_steps_per_rev}")
+
+    if v:
+        raise ProfileError(f"{len(v)} violation(s) in profile {self.id!r}", violations=v)
+
+
+Profile.validate = _profile_validate  # type: ignore[assignment]
