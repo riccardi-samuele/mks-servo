@@ -25,6 +25,17 @@ from mks_servo.raw import RawDriver
 ENCODER_COUNTS_PER_REV = 0x4000  # 16384
 
 
+def _counts_to_angle(counts: int, gear_ratio: float, origin_offset: int) -> float:
+    """Inverse of `_angle_to_counts`."""
+    motor_counts = counts - origin_offset
+    motor_deg = motor_counts * 360.0 / ENCODER_COUNTS_PER_REV
+    return motor_deg / gear_ratio
+
+
+# The firmware reports angle error in driver units: 51200 = 360°.
+_ANGLE_ERROR_UNITS_PER_REV = 51200
+
+
 def _angle_to_counts(angle_deg: float, gear_ratio: float, origin_offset: int) -> int:
     """Convert output-axis angle (degrees) to encoder counts (motor side).
 
@@ -170,6 +181,53 @@ class Motor:
         self._raw.move_absolute_axis(counts, eff_rpm, eff_acc)
         if blocking:
             self._raw.wait_until_idle(timeout=timeout)
+
+    def read(self) -> float:
+        """Current absolute angle in output-axis degrees (gear_ratio + origin applied)."""
+        self._require_attached()
+        counts = self._raw.read_encoder_addition()
+        return _counts_to_angle(counts,
+                                self.profile.mechanical.gear_ratio,
+                                self.profile.origin.encoder_offset_counts)
+
+    def error(self) -> float:
+        """Current following error (encoder vs commanded), in output-axis degrees.
+
+        The firmware reports angle error in driver units where 51200 = 360°.
+        """
+        self._require_attached()
+        units = self._raw.read_angle_error()
+        motor_deg = units * 360.0 / _ANGLE_ERROR_UNITS_PER_REV
+        return motor_deg / self.profile.mechanical.gear_ratio
+
+    def is_moving(self) -> bool:
+        """True if the motor is currently executing a move."""
+        self._require_attached()
+        from mks_servo.raw import MotorStatus
+        _MOVING = {
+            MotorStatus.SPEED_UP,
+            MotorStatus.SPEED_DOWN,
+            MotorStatus.FULL_SPEED,
+            MotorStatus.HOMING,
+            MotorStatus.CALIBRATING,
+        }
+        return self._raw.read_motor_status() in _MOVING
+
+    def emergency_stop(self) -> None:
+        """Best-effort immediate stop. Never raises.
+
+        Safe to call from signal handlers or before attach().
+        """
+        if self._raw is None:
+            return
+        try:
+            self._raw.emergency_stop()
+        except Exception:
+            pass
+        try:
+            self._raw.enable(False)
+        except Exception:
+            pass
 
     # ─── Read-only convenience ─────────────────────────────────────────
     @property
