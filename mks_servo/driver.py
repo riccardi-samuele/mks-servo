@@ -105,6 +105,34 @@ class MKSServo42D:
         """Cumulative angle in degrees, from encoder addition."""
         return encoder_counts_to_degrees(self.read_encoder_addition())
 
+    def calibrate(self) -> None:
+        """Cmd 0x80: calibrate the encoder. Motor MUST be unloaded.
+        Raises CalibrationFailed on status=2.
+        """
+        from .exceptions import CalibrationFailed
+        payload = self._txn(OpCode.CALIBRATE, b"\x00", expect_payload_len=1)
+        if payload == b"\x02":
+            raise CalibrationFailed("driver returned status=2 (calibration fail)")
+
+    def restart(self) -> bool:
+        payload = self._txn(OpCode.RESTART, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def restore_defaults(self) -> bool:
+        """Wipes calibration and config. Requires re-calibration after."""
+        payload = self._txn(OpCode.RESTORE_DEFAULTS, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def set_zero_point(self) -> bool:
+        """Cmd 0x92: set the current axis to 0 ('go-home without movement')."""
+        payload = self._txn(OpCode.SET_ZERO_POINT, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def release_protection(self) -> bool:
+        """Cmd 0x3D: clear stall-protection latch."""
+        payload = self._txn(OpCode.RELEASE_PROTECTION, expect_payload_len=1)
+        return payload == b"\x01"
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))
