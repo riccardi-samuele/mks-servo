@@ -112,3 +112,19 @@ def test_read_motor_status_full_speed(fake_serial):
     fake_serial.read.return_value = body + bytes([crc])
     with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
         assert m.read_motor_status() == MotorStatus.FULL_SPEED
+
+
+def test_read_protect_status_protected(fake_serial):
+    body = bytes.fromhex("FB 01 3E 01")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_protect_status() is True
+
+
+def test_read_protect_status_not_protected(fake_serial):
+    body = bytes.fromhex("FB 01 3E 00")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_protect_status() is False

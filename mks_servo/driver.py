@@ -134,6 +134,11 @@ class MKSServo42D:
         payload = self._txn(OpCode.RELEASE_PROTECTION, expect_payload_len=1)
         return payload == b"\x01"
 
+    def read_protect_status(self) -> bool:
+        """Cmd 0x3E: True if motor stall protection is latched."""
+        payload = self._txn(OpCode.READ_PROTECT_STATUS, expect_payload_len=1)
+        return payload == b"\x01"
+
     def set_work_mode(self, mode) -> bool:
         """Cmd 0x82: set work mode."""
         payload = self._txn(OpCode.SET_WORK_MODE, bytes([int(mode)]), expect_payload_len=1)
