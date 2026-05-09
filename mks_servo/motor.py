@@ -310,3 +310,44 @@ class Motor:
                                 message=f"current must be >= 0, got {value}")
         self._raw.set_work_current_ma(value)
         self.profile.config.work_current_ma = value
+
+    @property
+    def microsteps(self) -> int:
+        """Microsteps per full step (1..256). Setter writes to driver immediately."""
+        return self.profile.config.microsteps
+
+    @microsteps.setter
+    def microsteps(self, value: int) -> None:
+        self._require_attached()
+        value = int(value)
+        if not (1 <= value <= 256):
+            raise ValueError(f"microsteps must be in 1..256, got {value}")
+        self._raw.set_subdivision(value)
+        self.profile.config.microsteps = value
+
+    @property
+    def direction(self):
+        """Rotation direction (CW or CCW). Setter writes to driver immediately."""
+        return self.profile.config.direction
+
+    @direction.setter
+    def direction(self, value) -> None:
+        self._require_attached()
+        self._raw.set_direction(value)
+        self.profile.config.direction = value
+
+    @property
+    def hold_current_pct(self) -> int:
+        """Hold-current percent (10..90, step 10). Setter writes to driver immediately."""
+        return self.profile.config.hold_current_pct
+
+    @hold_current_pct.setter
+    def hold_current_pct(self, value: int) -> None:
+        self._require_attached()
+        value = int(value)
+        if not (10 <= value <= 90) or value % 10 != 0:
+            raise ValueError(
+                f"hold_current_pct must be 10..90 step 10, got {value}"
+            )
+        self._raw.set_hold_current_pct(value)
+        self.profile.config.hold_current_pct = value

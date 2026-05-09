@@ -12,7 +12,7 @@ import time
 from enum import IntEnum
 
 from .transport import transact
-from .constants import OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
+from .constants import Direction, OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
 
 
 class MotorStatus(IntEnum):
@@ -174,6 +174,28 @@ class RawDriver:
             raise ValueError(f"microsteps must be 1..256, got {microsteps}")
         byte_val = 0x00 if microsteps == 256 else microsteps
         payload = self._txn(OpCode.SET_SUBDIVISION, bytes([byte_val]), expect_payload_len=1)
+        return payload == b"\x01"
+
+    def set_direction(self, direction: Direction) -> bool:
+        """Cmd 0x85: motor rotation direction. CW=0, CCW=1."""
+        payload = self._txn(
+            OpCode.SET_DIRECTION, bytes([int(direction)]), expect_payload_len=1
+        )
+        return payload == b"\x01"
+
+    def set_hold_current_pct(self, pct: int) -> bool:
+        """Cmd 0x86: holding current as a percentage (10..90, step 10).
+
+        The firmware encodes hold current as an index 0..8 mapping to 10..90 %.
+        This method accepts the percent directly (10, 20, …, 90) and translates
+        internally: idx = (pct - 10) // 10.
+        """
+        if not (10 <= pct <= 90) or pct % 10 != 0:
+            raise ValueError(f"hold current must be 10..90 step 10, got {pct}")
+        idx = (pct - 10) // 10
+        payload = self._txn(
+            OpCode.SET_HOLDING_CURRENT, bytes([idx]), expect_payload_len=1
+        )
         return payload == b"\x01"
 
     def read_all_config(self) -> dict:
