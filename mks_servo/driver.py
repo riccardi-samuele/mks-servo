@@ -233,6 +233,30 @@ class MKSServo42D:
         payload = self._txn(OpCode.MOVE_ABS_PULSES, data, expect_payload_len=1)
         return payload == b"\x01"
 
+    def move_relative_axis(self, counts: int, rpm: int, acc: int = 2) -> bool:
+        """Cmd 0xF4: relative move by encoder counts (int32 BE). 0x4000 = 1 turn."""
+        if not -(2**31) <= counts <= 2**31 - 1:
+            raise ValueError(f"counts out of int32 range: {counts}")
+        if not 0 <= rpm <= 3000:
+            raise ValueError(f"rpm must be 0..3000, got {rpm}")
+        if not 0 <= acc <= 255:
+            raise ValueError(f"acc must be 0..255, got {acc}")
+        data = rpm.to_bytes(2, "big") + bytes([acc]) + counts.to_bytes(4, "big", signed=True)
+        payload = self._txn(OpCode.MOVE_REL_AXIS, data, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def move_absolute_axis(self, counts: int, rpm: int, acc: int = 2) -> bool:
+        """Cmd 0xF5: absolute move to encoder count (int32 BE). Supports real-time updates."""
+        if not -(2**31) <= counts <= 2**31 - 1:
+            raise ValueError(f"counts out of int32 range: {counts}")
+        if not 0 <= rpm <= 3000:
+            raise ValueError(f"rpm must be 0..3000, got {rpm}")
+        if not 0 <= acc <= 255:
+            raise ValueError(f"acc must be 0..255, got {acc}")
+        data = rpm.to_bytes(2, "big") + bytes([acc]) + counts.to_bytes(4, "big", signed=True)
+        payload = self._txn(OpCode.MOVE_ABS_AXIS, data, expect_payload_len=1)
+        return payload == b"\x01"
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))

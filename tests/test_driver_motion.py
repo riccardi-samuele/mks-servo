@@ -89,3 +89,23 @@ def test_move_absolute_pulses_negative(fake_serial):
     sent = fake_serial.write.call_args[0][0]
     expected_body = bytes.fromhex("FA 01 FE 02 58 02 FF FF C0 00")
     assert sent[:-1] == expected_body
+
+
+def test_move_absolute_axis_manual_example(fake_serial):
+    """Manual §6.9: 'FA 01 F5 02 58 02 00 00 40 00 8C' for abs=0x4000, speed=600, acc=2."""
+    fake_serial.read.return_value = _resp(1, 0xF5, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.move_absolute_axis(counts=0x4000, rpm=600, acc=2)
+    sent = fake_serial.write.call_args[0][0]
+    expected_body = bytes.fromhex("FA 01 F5 02 58 02 00 00 40 00")
+    assert sent[:-1] == expected_body
+
+
+def test_move_relative_axis_negative(fake_serial):
+    """Manual §6.8: relAxis=-0x4000, speed=600, acc=2."""
+    fake_serial.read.return_value = _resp(1, 0xF4, b"\x01")
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.move_relative_axis(counts=-0x4000, rpm=600, acc=2)
+    sent = fake_serial.write.call_args[0][0]
+    expected_body = bytes.fromhex("FA 01 F4 02 58 02 FF FF C0 00")
+    assert sent[:-1] == expected_body
