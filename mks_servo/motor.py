@@ -292,6 +292,27 @@ class Motor:
     def model(self) -> str:
         return self.profile.driver.model
 
+    # ─── Level 1 methods ─────────────────────────────────────────────
+    def set_origin(self, *, soft: bool = False) -> None:
+        """Set the current position as the zero point.
+
+        soft=False (default): writes to driver flash via cmd 0x92. Persists
+        across power-cycle.
+
+        soft=True: stores the current encoder counts as the in-memory
+        `origin.encoder_offset_counts` in the profile. Does NOT touch the
+        driver's flash. Profile is NOT auto-saved; call `profile.save()` to persist.
+        """
+        self._require_attached()
+        if soft:
+            counts = self._raw.read_encoder_addition()
+            self.profile.origin.encoder_offset_counts = counts
+            self.profile.origin.set_in_firmware = False
+        else:
+            self._raw.set_zero_point()
+            self.profile.origin.set_in_firmware = True
+            self.profile.origin.encoder_offset_counts = 0
+
     # ─── Level 1 properties ───────────────────────────────────────────
     @property
     def work_current_ma(self) -> int:
