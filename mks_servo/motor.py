@@ -290,3 +290,23 @@ class Motor:
     @property
     def model(self) -> str:
         return self.profile.driver.model
+
+    # ─── Level 1 properties ───────────────────────────────────────────
+    @property
+    def work_current_ma(self) -> int:
+        """Operating current in milliamps. Setter writes to driver immediately
+        and validates against `profile.limits.current.max_ma` (always reject)."""
+        return self.profile.config.work_current_ma
+
+    @work_current_ma.setter
+    def work_current_ma(self, value: int) -> None:
+        self._require_attached()
+        value = int(value)
+        max_ma = self.profile.limits.current.max_ma
+        if value > max_ma:
+            raise LimitExceeded(kind="current", value=value, limit=max_ma)
+        if value < 0:
+            raise LimitExceeded(kind="current", value=value, limit=0,
+                                message=f"current must be >= 0, got {value}")
+        self._raw.set_work_current_ma(value)
+        self.profile.config.work_current_ma = value
