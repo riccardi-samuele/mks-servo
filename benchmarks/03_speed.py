@@ -35,17 +35,24 @@ def run_s1(m: MKSServo42D, run_dir: Path) -> None:
     rows = []
     for mode_name, (mode, max_rated) in MODES.items():
         m.enable(False)
+        time.sleep(0.5)
         m.set_work_mode(mode)
+        time.sleep(0.5)
         m.set_subdivision(16)
+        time.sleep(0.5)
+        m.restart()  # required: mode-dependent RPM cap doesn't apply otherwise
+        time.sleep(2.0)
         m.enable(True)
-        for cmd_rpm in np.arange(50, int(max_rated * 1.1), 100, dtype=int).tolist() + [max_rated]:
+        time.sleep(0.5)
+        sweep = list(range(50, max_rated, 100)) + [max_rated]
+        for cmd_rpm in sweep:
             m.move_speed(rpm=int(cmd_rpm), acc=10, direction=Direction.CW)
             time.sleep(2.5)
             measured = m.read_speed_rpm()
             rows.append({"mode": mode_name, "cmd_rpm": int(cmd_rpm), "measured_rpm": measured})
             print(f"  {mode_name:>8s}  cmd={cmd_rpm:>4d}  meas={measured:>5d}")
         m.move_speed(rpm=0, acc=10, direction=Direction.CW)
-        time.sleep(1.0)
+        time.sleep(1.5)
 
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["mode", "cmd_rpm", "measured_rpm"])
@@ -122,11 +129,12 @@ def run_s2(m: MKSServo42D, run_dir: Path) -> None:
 def run_s3(m: MKSServo42D, run_dir: Path) -> None:
     """S3: stall threshold — 10-turn move at increasing RPM in SR_CLOSE mode."""
     banner("S3: stall threshold")
-    m.enable(False)
-    m.set_work_mode(WorkMode.SR_CLOSE)
-    m.set_subdivision(16)
-    m.enable(True)
-    rpms = [500, 1000, 1300, 1500, 1700, 2000, 2500]
+    m.enable(False); time.sleep(0.5)
+    m.set_work_mode(WorkMode.SR_CLOSE); time.sleep(0.5)
+    m.set_subdivision(16); time.sleep(0.5)
+    m.restart(); time.sleep(2.0)  # required for mode change to apply
+    m.enable(True); time.sleep(0.5)
+    rpms = [500, 1000, 1300, 1500, 1700, 2000]
     csv_path = run_dir / "s3_stall.csv"
     rows = []
 
