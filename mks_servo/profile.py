@@ -453,3 +453,115 @@ def _profile_from_driver(cls, raw, *, id: str) -> "Profile":
 
 
 Profile.from_driver = classmethod(_profile_from_driver)  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Profile.save() — Task 10: write profile back to YAML preserving comments.
+# ---------------------------------------------------------------------------
+
+def _profile_to_dict(prof: "Profile") -> dict:
+    """Convert a Profile to a plain dict ordered for human readability."""
+    def _dt(d):
+        return d.isoformat() if d is not None else None
+    return {
+        "schema_version": prof.schema_version,
+        "id": prof.id,
+        "description": prof.description,
+        "created_at": _dt(prof.created_at),
+        "updated_at": _dt(prof.updated_at),
+        "driver": {
+            "model": prof.driver.model,
+            "firmware_min": prof.driver.firmware_min,
+            "slave_addr": prof.driver.slave_addr,
+        },
+        "transport": {
+            "port": prof.transport.port,
+            "baud": prof.transport.baud,
+            "timeout_s": prof.transport.timeout_s,
+        },
+        "config": {
+            "mode": prof.config.mode.name,
+            "microsteps": prof.config.microsteps,
+            "work_current_ma": prof.config.work_current_ma,
+            "hold_current_pct": prof.config.hold_current_pct,
+            "direction": prof.config.direction.name,
+        },
+        "limits": {
+            "position": {
+                "min_deg": prof.limits.position.min_deg,
+                "max_deg": prof.limits.position.max_deg,
+                "on_violation": prof.limits.position.on_violation,
+            },
+            "speed": {
+                "max_rpm_safe": prof.limits.speed.max_rpm_safe,
+                "on_violation": prof.limits.speed.on_violation,
+            },
+            "current": {"max_ma": prof.limits.current.max_ma},
+        },
+        "origin": {
+            "set_in_firmware": prof.origin.set_in_firmware,
+            "encoder_offset_counts": prof.origin.encoder_offset_counts,
+        },
+        "mechanical": {
+            "motor_model": prof.mechanical.motor_model,
+            "full_steps_per_rev": prof.mechanical.full_steps_per_rev,
+            "gear_ratio": prof.mechanical.gear_ratio,
+        },
+        "characterization": {
+            "last_calibrated": _dt(prof.characterization.last_calibrated),
+            "precision": {
+                "sigma_deg": prof.characterization.precision.sigma_deg,
+                "peak_deg": prof.characterization.precision.peak_deg,
+            },
+            "speed": {
+                "max_measured_rpm": prof.characterization.speed.max_measured_rpm,
+                "voltage_v": prof.characterization.speed.voltage_v,
+            },
+        },
+    }
+
+
+def _deep_update(dst, src):
+    """In-place merge of src into dst preserving dst's structure (for ruamel)."""
+    for k, v in src.items():
+        if isinstance(v, dict) and k in dst and isinstance(dst[k], dict):
+            _deep_update(dst[k], v)
+        else:
+            dst[k] = v
+
+
+def _profile_save(self, path: Optional[Path] = None) -> None:
+    """Save the profile to YAML.
+
+    If `path` is None, writes back to `self.path`. If both are None
+    (template-loaded profile), raises ProfileError.
+
+    Round-trip note: if the profile was loaded from a YAML file, comments and
+    field ordering are preserved. If it was constructed in memory, the output
+    follows a canonical order.
+    """
+    target = Path(path) if path is not None else self.path
+    if target is None:
+        raise ProfileError(
+            "no path: profile was loaded from a template or constructed in memory; "
+            "pass an explicit path to save()"
+        )
+
+    self.updated_at = datetime.now(timezone.utc)
+
+    # Round-trip path: re-read original file (if any) so ruamel preserves comments.
+    if self.path is not None and self.path.exists():
+        with self.path.open("r") as f:
+            data = _yaml.load(f) or {}
+        new = _profile_to_dict(self)
+        _deep_update(data, new)
+    else:
+        data = _profile_to_dict(self)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w") as f:
+        _yaml.dump(data, f)
+    self.path = target.resolve()
+
+
+Profile.save = _profile_save  # type: ignore[assignment]
