@@ -78,7 +78,7 @@ def test_parse_frame_too_short():
 
 
 from unittest.mock import MagicMock
-from mks_servo.protocol import transact
+from mks_servo.transport import transact
 from mks_servo.exceptions import CommTimeout
 
 
@@ -91,7 +91,9 @@ def _fake_serial(reply: bytes):
 
 def test_transact_round_trip():
     ser = _fake_serial(bytes.fromhex("FB 01 80 01 7D"))
-    payload = transact(ser, addr=1, code=0x80, data=b"\x00", expect_payload_len=1, timeout=0.1)
+    addr, code, payload = transact(ser, addr=1, code=0x80, data=b"\x00", expect_payload_len=1, timeout=0.1)
+    assert addr == 1
+    assert code == 0x80
     assert payload == b"\x01"
     sent = ser.write.call_args[0][0]
     assert sent == bytes.fromhex("FA 01 80 00 7B")

@@ -12,6 +12,7 @@ import time
 from enum import IntEnum
 
 from . import protocol
+from .transport import transact
 from .constants import OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
 
 
@@ -72,10 +73,11 @@ class RawDriver:
     def _txn(self, code: int, data: bytes = b"", expect_payload_len: int | None = None) -> bytes:
         if self._ser is None:
             raise RuntimeError("serial not open; call .open() or use as context manager")
-        return protocol.transact(
+        _, _, payload = transact(
             self._ser, addr=self.addr, code=code, data=data,
             expect_payload_len=expect_payload_len, timeout=self.timeout,
         )
+        return payload
 
     def enable(self, on: bool) -> bool:
         """Enable (True) or disable (False) the motor (cmd 0xF3). Returns True on success."""
