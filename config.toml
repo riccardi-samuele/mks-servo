@@ -1,0 +1,10 @@
+[serial]
+port = "/dev/ttyUSB0"
+baud = 38400
+slave_addr = 1
+timeout = 0.5
+
+[setup]
+voltage_v = 12
+nema17_full_steps = 200
+default_microsteps = 16
