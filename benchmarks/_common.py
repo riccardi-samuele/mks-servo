@@ -50,3 +50,25 @@ def confirm(prompt: str) -> None:
     """Pause for manual user action (used by persistence tests)."""
     print(f"\n[ACTION REQUIRED] {prompt}", flush=True)
     input("Press ENTER when done...")
+
+
+from typing import Any, Callable, TypeVar
+from mks_servo.exceptions import CommTimeout
+
+T = TypeVar("T")
+
+
+def safe_call(fn: Callable[..., T], *args: Any, retries: int = 1, **kwargs: Any) -> T:
+    """Call `fn(*args, **kwargs)` and retry once on CommTimeout.
+
+    USB-RS485 adapters sometimes drop the first byte after a long pause; one
+    retry recovers the transaction in practice. Re-raises after `retries`.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except CommTimeout as e:
+            last_exc = e
+    assert last_exc is not None
+    raise last_exc
