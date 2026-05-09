@@ -11,7 +11,7 @@ import serial
 import time
 from enum import IntEnum
 
-from .transport import transact
+from .transport import transact, SharedTransport
 from .constants import Direction, OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
 
 
@@ -32,23 +32,36 @@ class RawDriver:
     Not aware of profiles or user-space limits — that lives in `Motor`.
     """
 
-    def __init__(self, port: str, baud: int = 38400, addr: int = 1, timeout: float = 0.5) -> None:
+    def __init__(self, port: str | None = None, baud: int = 38400,
+                 addr: int = 1, timeout: float = 0.5,
+                 *,
+                 transport: "SharedTransport | None" = None) -> None:
         self.port = port
         self.baud = baud
         self.addr = addr
         self.timeout = timeout
+        # External transport: bus owns lifecycle.
+        # Internal transport: created lazily in open() based on port/baud/timeout.
+        self._transport: SharedTransport | None = transport
+        self._owns_transport = transport is None
         self._ser: serial.Serial | None = None
         self._enabled = False
+        # If an external transport was given AND it's already open, expose its serial.
+        if transport is not None:
+            self._ser = getattr(transport, "_ser", None)
 
     def open(self) -> None:
-        self._ser = serial.Serial(
-            port=self.port,
-            baudrate=self.baud,
-            bytesize=8,
-            parity="N",
-            stopbits=1,
-            timeout=self.timeout,
-        )
+        if not self._owns_transport:
+            # External transport: bus owns it. Just refresh the local _ser cache.
+            if self._transport is not None:
+                self._ser = self._transport._ser
+            return
+        if self._transport is None:
+            self._transport = SharedTransport(
+                port=self.port, baud=self.baud, timeout=self.timeout,
+            )
+        self._transport.open()
+        self._ser = self._transport._ser
 
     def close(self) -> None:
         if self._enabled:
@@ -57,9 +70,10 @@ class RawDriver:
             except Exception:
                 pass
             self._enabled = False
-        if self._ser is not None:
-            self._ser.close()
-            self._ser = None
+        if self._owns_transport and self._transport is not None:
+            self._transport.close()
+            self._transport = None
+        self._ser = None
 
     def __enter__(self) -> "RawDriver":
         self.open()
@@ -70,10 +84,12 @@ class RawDriver:
 
     # Internal helper used by all command methods
     def _txn(self, code: int, data: bytes = b"", expect_payload_len: int | None = None) -> bytes:
-        if self._ser is None:
-            raise RuntimeError("serial not open; call .open() or use as context manager")
-        _, _, payload = transact(
-            self._ser, addr=self.addr, code=code, data=data,
+        if self._transport is None or self._transport._ser is None:
+            raise RuntimeError(
+                "transport not open; call .open() or use as context manager"
+            )
+        _, _, payload = self._transport.transact(
+            addr=self.addr, code=code, data=data,
             expect_payload_len=expect_payload_len, timeout=self.timeout,
         )
         return payload
