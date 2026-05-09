@@ -22,11 +22,17 @@ from typing import Optional, Union
 
 _logger = logging.getLogger("mks_servo.motor")
 
-from mks_servo.exceptions import LimitExceeded, MotorNotAttached
+from datetime import datetime as _dt, timezone as _tz
+from mks_servo.constants import WorkMode
+from mks_servo.exceptions import CalibrationFailed, LimitExceeded, MotorNotAttached
 from mks_servo.profile import Profile
-from mks_servo.raw import RawDriver
+from mks_servo.raw import MotorStatus, RawDriver
 
 ENCODER_COUNTS_PER_REV = 0x4000  # 16384
+
+# HIL-validated delays (2026-05-09): firmware silently drops back-to-back cmds.
+_CALIB_DELAY_S = 0.5
+_CALIB_POLL_INTERVAL_S = 0.5
 
 
 def _counts_to_angle(counts: int, gear_ratio: float, origin_offset: int) -> float:
@@ -261,7 +267,6 @@ class Motor:
     def is_moving(self) -> bool:
         """True if the motor is currently executing a move."""
         self._require_attached()
-        from mks_servo.raw import MotorStatus
         _MOVING = {
             MotorStatus.SPEED_UP,
             MotorStatus.SPEED_DOWN,
@@ -467,3 +472,60 @@ class Motor:
     @speed_limit_rpm.setter
     def speed_limit_rpm(self, value) -> None:
         self._speed_limit_rpm = None if value is None else int(value)
+
+    def calibrate(self, *,
+                  current_ma: int = 3000,
+                  timeout: float = 30.0) -> None:
+        """Run the FOC calibration sequence with the empirically determined delays.
+
+        The HIL session 2026-05-09 established that calibration only succeeds
+        when the configuration is set with 500 ms between each command — back-
+        to-back set_* calls are silently dropped by the firmware.
+
+        On success: profile.characterization.last_calibrated is updated. The
+        previous work_current_ma is restored. Profile is NOT auto-saved.
+
+        On failure: the previous current is restored (best-effort) and a
+        CalibrationFailed is raised.
+
+        Args:
+            current_ma: high current to use during calibration. Default 3000mA
+                       (NEMA17 needs this to overcome static friction; HIL finding).
+            timeout: max wall-clock seconds to wait for calibration to complete.
+        """
+        self._require_attached()
+        previous_current = self.profile.config.work_current_ma
+
+        try:
+            self._raw.enable(False)
+            _time.sleep(_CALIB_DELAY_S)
+            self._raw.set_work_mode(WorkMode.SR_vFOC)
+            _time.sleep(_CALIB_DELAY_S)
+            self._raw.set_subdivision(16)
+            _time.sleep(_CALIB_DELAY_S)
+            self._raw.set_work_current_ma(int(current_ma))
+            _time.sleep(_CALIB_DELAY_S)
+
+            # Issue the calibrate opcode. RawDriver.calibrate() raises
+            # CalibrationFailed on status=2; let that propagate.
+            self._raw.calibrate()
+
+            # Poll for completion (or timeout).
+            deadline = _time.monotonic() + timeout
+            while True:
+                status = self._raw.read_motor_status()
+                if status != MotorStatus.CALIBRATING:
+                    break
+                if _time.monotonic() > deadline:
+                    raise CalibrationFailed(
+                        f"timeout: calibration did not complete within {timeout}s"
+                    )
+                _time.sleep(_CALIB_POLL_INTERVAL_S)
+
+            self.profile.characterization.last_calibrated = _dt.now(_tz.utc)
+        finally:
+            # Always restore previous current — best effort, swallow errors.
+            try:
+                self._raw.set_work_current_ma(previous_current)
+            except Exception:
+                pass
