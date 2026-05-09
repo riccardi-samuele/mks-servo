@@ -94,3 +94,24 @@ def test_set_subdivision_rejects_zero(fake_serial):
     with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
         with pytest.raises(ValueError):
             m.set_subdivision(0)
+
+
+def test_read_all_config_returns_dict(fake_serial):
+    """Manual §5.9: read 0x47, response is FB 01 47 + 34 bytes payload + CRC."""
+    payload = bytearray(34)
+    payload[0] = 5    # mode = SR_vFOC
+    payload[1] = 0x06; payload[2] = 0x40  # current = 1600 mA
+    payload[3] = 4    # hold = 50%
+    payload[4] = 0x10  # subdivision = 16
+    payload[5] = 0    # En
+    payload[6] = 0    # Dir = CW
+    body = bytes([0xFB, 0x01, 0x47]) + bytes(payload)
+    fake_serial.read.return_value = body + bytes([sum(body) & 0xFF])
+
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        cfg = m.read_all_config()
+
+    assert cfg["mode"] == 5
+    assert cfg["current_ma"] == 1600
+    assert cfg["subdivision"] == 16
+    assert isinstance(cfg["raw"], bytes) and len(cfg["raw"]) == 34

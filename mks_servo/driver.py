@@ -154,6 +154,26 @@ class MKSServo42D:
         payload = self._txn(OpCode.SET_SUBDIVISION, bytes([byte_val]), expect_payload_len=1)
         return payload == b"\x01"
 
+    def read_all_config(self) -> dict:
+        """Cmd 0x47: read 38-byte config snapshot.
+        Returns a dict with parsed common fields plus raw bytes for full diff.
+        """
+        payload = self._txn(OpCode.READ_ALL_CONFIG, expect_payload_len=34)
+        return {
+            "mode": payload[0],
+            "current_ma": int.from_bytes(payload[1:3], "big"),
+            "hold_current_pct_idx": payload[3],
+            "subdivision": 256 if payload[4] == 0 else payload[4],
+            "en_active": payload[5],
+            "dir_cw": payload[6] == 0,
+            "auto_screen_off": bool(payload[7]),
+            "stall_protect": bool(payload[8]),
+            "interp_enabled": bool(payload[9]),
+            "baud_code": payload[10],
+            "slave_addr": payload[11],
+            "raw": bytes(payload),
+        }
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))
