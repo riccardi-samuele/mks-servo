@@ -67,9 +67,18 @@ def from_driver_cmd(port: str, addr: int, baud: int, timeout: float,
 
 
 @click.command()
-def validate_cmd() -> None:
-    """(Stub — implemented in Task 28.)"""
-    raise NotImplementedError("validate: implemented in Task 28")
+@click.argument("name_or_path")
+def validate_cmd(name_or_path: str) -> None:
+    """Validate a profile by id (lookup) or path."""
+    try:
+        prof = Profile.load(name_or_path)
+        prof.validate()
+    except ProfileError as e:
+        click.echo(f"INVALID: {e}", err=True)
+        for v in e.violations:
+            click.echo(f"  - {v}", err=True)
+        raise click.exceptions.Exit(1)
+    click.echo(f"OK: {prof.id} ({prof.path})")
 
 
 @click.command()
