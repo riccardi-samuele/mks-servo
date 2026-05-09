@@ -2,7 +2,7 @@ import serial
 from enum import IntEnum
 
 from . import protocol
-from .constants import OpCode
+from .constants import OpCode, ENCODER_COUNTS_PER_REV, NEMA17_FULL_STEPS
 
 
 class MotorStatus(IntEnum):
@@ -100,3 +100,19 @@ class MKSServo42D:
         """Cmd 0xF1: motor running status."""
         payload = self._txn(OpCode.QUERY_STATUS, expect_payload_len=1)
         return MotorStatus(payload[0])
+
+    def read_angle_degrees(self) -> float:
+        """Cumulative angle in degrees, from encoder addition."""
+        return encoder_counts_to_degrees(self.read_encoder_addition())
+
+
+def degrees_to_encoder_counts(deg: float) -> int:
+    return int(round(deg * ENCODER_COUNTS_PER_REV / 360))
+
+
+def encoder_counts_to_degrees(counts: int) -> float:
+    return counts * 360.0 / ENCODER_COUNTS_PER_REV
+
+
+def degrees_to_pulses(deg: float, microsteps: int = 16) -> int:
+    return int(round(deg * NEMA17_FULL_STEPS * microsteps / 360))
