@@ -51,6 +51,22 @@ def _angle_to_counts(angle_deg: float, gear_ratio: float, origin_offset: int) ->
     return counts - origin_offset
 
 
+def _apply_speed_policy(rpm: int,
+                        max_rpm: Optional[int],
+                        policy: str) -> int:
+    if max_rpm is None or rpm <= max_rpm:
+        return rpm
+    if policy == "reject":
+        raise LimitExceeded(kind="speed", value=rpm, limit=max_rpm)
+    if policy == "clamp":
+        return max_rpm
+    if policy == "warn":
+        _logger.warning("speed limit exceeded: %d > %d (proceeding)", rpm, max_rpm)
+        return rpm
+    raise LimitExceeded(kind="speed", value=rpm, limit=max_rpm,
+                        message=f"unknown on_violation policy: {policy!r}")
+
+
 def _apply_position_policy(angle_deg: float,
                            min_deg: Optional[float],
                            max_deg: Optional[float],
@@ -209,6 +225,10 @@ class Motor:
         )
 
         eff_rpm = 300 if rpm is None else int(rpm)
+        eff_rpm = _apply_speed_policy(
+            eff_rpm, self._speed_limit_rpm,
+            self.profile.limits.speed.on_violation,
+        )
         eff_acc = 50 if acc is None else int(acc)
         counts = _angle_to_counts(
             angle_deg,
