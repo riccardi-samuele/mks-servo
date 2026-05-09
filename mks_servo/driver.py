@@ -1,4 +1,5 @@
 import serial
+import time
 from enum import IntEnum
 
 from . import protocol
@@ -173,6 +174,33 @@ class MKSServo42D:
             "slave_addr": payload[11],
             "raw": bytes(payload),
         }
+
+
+    def emergency_stop(self) -> bool:
+        """Cmd 0xF7: stop everything immediately. Above 1000 RPM use stop_speed_mode instead."""
+        payload = self._txn(OpCode.EMERGENCY_STOP, expect_payload_len=1)
+        return payload == b"\x01"
+
+    def move_speed(self, rpm: int, acc: int = 2, direction=None) -> bool:
+        """Cmd 0xF6: continuous speed mode."""
+        from .constants import Direction as _Dir
+        if direction is None:
+            direction = _Dir.CW
+        if not 0 <= rpm <= 3000:
+            raise ValueError(f"rpm must be 0..3000, got {rpm}")
+        if not 0 <= acc <= 255:
+            raise ValueError(f"acc must be 0..255, got {acc}")
+        dir_bit = 0x80 if direction == _Dir.CCW else 0x00
+        b4 = dir_bit | ((rpm >> 8) & 0x0F)
+        b5 = rpm & 0xFF
+        payload = self._txn(OpCode.MOVE_SPEED, bytes([b4, b5, acc]), expect_payload_len=1)
+        return payload == b"\x01"
+
+    def save_speed_mode_state(self, save: bool = True) -> bool:
+        """Cmd 0xFF: save (0xC8) or clean (0xCA) speed-mode params."""
+        state = 0xC8 if save else 0xCA
+        payload = self._txn(OpCode.SAVE_SPEED_STATE, bytes([state]), expect_payload_len=1)
+        return payload == b"\x02"
 
 
 def degrees_to_encoder_counts(deg: float) -> int:
