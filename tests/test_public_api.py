@@ -17,3 +17,9 @@ def test_version_string_present():
     import mks_servo
     assert hasattr(mks_servo, "__version__")
     assert mks_servo.__version__ == "0.1.0"
+
+
+def test_motorbus_exported():
+    import mks_servo
+    assert hasattr(mks_servo, "MotorBus")
+    assert hasattr(mks_servo, "BusEntry")
