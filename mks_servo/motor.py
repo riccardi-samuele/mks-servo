@@ -22,6 +22,20 @@ from mks_servo.exceptions import MotorNotAttached
 from mks_servo.profile import Profile
 from mks_servo.raw import RawDriver
 
+ENCODER_COUNTS_PER_REV = 0x4000  # 16384
+
+
+def _angle_to_counts(angle_deg: float, gear_ratio: float, origin_offset: int) -> int:
+    """Convert output-axis angle (degrees) to encoder counts (motor side).
+
+    output_deg → motor_deg = output_deg * gear_ratio
+    motor_deg → counts = motor_deg / 360 * 16384
+    Apply origin_offset (subtracted: zero in counts is at origin_offset).
+    """
+    motor_deg = angle_deg * gear_ratio
+    counts = round(motor_deg / 360.0 * ENCODER_COUNTS_PER_REV)
+    return counts - origin_offset
+
 
 class Motor:
     """High-level interface to a single MKS SERVO motor.
@@ -123,6 +137,39 @@ class Motor:
             raise MotorNotAttached(
                 "call attach() before using the motor (or use a `with` block)"
             )
+
+    # ─── Level 0 motion ───────────────────────────────────────────────
+    def write(self, angle_deg: float, *,
+              rpm: Optional[int] = None,
+              acc: Optional[int] = None,
+              blocking: bool = True,
+              timeout: Optional[float] = None) -> None:
+        """Move to absolute angle (output-axis degrees).
+
+        Limit enforcement is added in Tasks 14-16; this Task 12 implementation
+        is the bare conversion + raw call + optional blocking wait.
+
+        Args:
+            angle_deg: target angle in output-axis degrees (gear_ratio applied).
+            rpm: speed in revolutions per minute. Default 300.
+            acc: acceleration setpoint (1..255). Default 50.
+            blocking: if True, wait_until_idle is called before returning.
+            timeout: forwarded to wait_until_idle(timeout=...) when blocking.
+
+        Raises:
+            MotorNotAttached: if attach() has not been called.
+        """
+        self._require_attached()
+        eff_rpm = 300 if rpm is None else int(rpm)
+        eff_acc = 50 if acc is None else int(acc)
+        counts = _angle_to_counts(
+            angle_deg,
+            self.profile.mechanical.gear_ratio,
+            self.profile.origin.encoder_offset_counts,
+        )
+        self._raw.move_absolute_axis(counts, eff_rpm, eff_acc)
+        if blocking:
+            self._raw.wait_until_idle(timeout=timeout)
 
     # ─── Read-only convenience ─────────────────────────────────────────
     @property
