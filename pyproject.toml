@@ -1,17 +1,21 @@
 [project]
-name = "mks-servo-test"
+name = "mks-servo"
 version = "0.1.0"
-description = "Characterization tests for MKS SERVO42D RS485 + NEMA17"
+description = "Python library for MKS SERVO42D RS485 stepper drivers"
 requires-python = ">=3.10"
 dependencies = [
     "pyserial>=3.5",
-    "numpy>=1.24",
-    "matplotlib>=3.7",
+    "ruamel.yaml>=0.18",
+    "click>=8.1",
     "tomli>=2.0;python_version<'3.11'",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4", "pytest-mock>=3.11"]
+bench = ["matplotlib>=3.7", "numpy>=1.24"]
+dev   = ["pytest>=7.4", "pytest-mock>=3.11"]
+
+[project.scripts]
+mks-servo = "mks_servo.cli.__main__:main"
 
 [tool.pytest.ini_options]
 markers = [
@@ -25,3 +29,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["mks_servo*"]
+
+[tool.setuptools.package-data]
+mks_servo = ["profiles/_templates/*.yaml"]
