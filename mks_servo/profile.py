@@ -384,3 +384,72 @@ def _profile_validate(self) -> None:
 
 
 Profile.validate = _profile_validate  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Profile.from_driver — Task 9: introspection via cmd 0x47 (read_all_config).
+# ---------------------------------------------------------------------------
+
+from mks_servo.constants import BaudRate  # noqa: E402
+
+
+# BaudRate code → bps lookup built from the BaudRate enum.
+# Example: code 4 → 38400, code 6 → 115200.
+_BAUD_CODE_TO_BPS: dict[int, int] = {br.code: br.bps for br in BaudRate}
+
+# hold_current_pct_idx → percentage.
+# The firmware encodes hold current as an index 0-8, where each step is 10%.
+# Index 0 → 10%, index 1 → 20%, …, index 8 → 90%.
+_HOLD_IDX_TO_PCT: dict[int, int] = {i: (i + 1) * 10 for i in range(9)}
+
+
+def _profile_from_driver(cls, raw, *, id: str) -> "Profile":
+    """Snapshot a connected RawDriver into a fresh Profile.
+
+    Reads ``read_all_config()`` (cmd 0x47) from the driver and populates the
+    ``driver``, ``transport.baud``, and ``config`` sections.  ``limits``,
+    ``mechanical``, and ``characterization`` get default values — they are not
+    knowable from the driver alone.
+
+    Translation from raw read_all_config() dict to Profile fields:
+      - info["mode"]               raw int → WorkMode(int)
+      - info["current_ma"]         milliamps → config.work_current_ma
+      - info["hold_current_pct_idx"] index 0-8 → percentage (idx+1)*10
+      - info["subdivision"]        microsteps int → config.microsteps
+      - info["dir_cw"]             bool True→CW / False→CCW → Direction enum
+      - info["slave_addr"]         raw int → driver.slave_addr
+      - info["baud_code"]          BaudRate.code → bps via _BAUD_CODE_TO_BPS
+
+    Returns a Profile with ``path=None``. Caller is responsible for ``save()``.
+    """
+    info = raw.read_all_config()
+
+    # Translate baud_code (e.g. 4) → bps (e.g. 38400).
+    baud_code = int(info["baud_code"])
+    baud_bps = _BAUD_CODE_TO_BPS.get(baud_code, 38400)
+
+    # Translate hold_current_pct_idx (0-8) → percentage (10-90 step 10).
+    hold_idx = int(info["hold_current_pct_idx"])
+    hold_pct = _HOLD_IDX_TO_PCT.get(hold_idx, 50)  # default 50% on unknown index
+
+    # Translate dir_cw bool → Direction enum (True=CW, False=CCW).
+    direction = Direction.CW if info["dir_cw"] else Direction.CCW
+
+    prof = Profile(
+        id=id,
+        driver=DriverSection(model="servo42d", slave_addr=int(info["slave_addr"])),
+        config=ConfigSection(
+            mode=WorkMode(int(info["mode"])),
+            microsteps=int(info["subdivision"]),
+            work_current_ma=int(info["current_ma"]),
+            hold_current_pct=hold_pct,
+            direction=direction,
+        ),
+        transport=TransportSection(baud=baud_bps),
+    )
+    prof.created_at = datetime.now(timezone.utc)
+    prof.updated_at = prof.created_at
+    return prof
+
+
+Profile.from_driver = classmethod(_profile_from_driver)  # type: ignore[assignment]
