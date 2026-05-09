@@ -39,11 +39,11 @@ def main() -> int:
     )
     with Motor(prof) as m:
         banner("Step 1: ping (read encoder)")
-        carry, value = m._raw.read_encoder()
+        carry, value = m.raw.read_encoder()
         print(f"  encoder: carry={carry}, value=0x{value:04X} ({value})")
 
         banner("Step 2: read full config snapshot")
-        snap = m._raw.read_all_config()
+        snap = m.raw.read_all_config()
         print(json.dumps({k: v for k, v in snap.items() if k != "raw"}, indent=2))
         (run_dir / "config_snapshot.json").write_text(
             json.dumps({**{k: v for k, v in snap.items() if k != "raw"},
@@ -54,14 +54,14 @@ def main() -> int:
         print(f"  status = {m.status.name}")
 
         banner("Step 4: ensure SR_vFOC mode + 16 microsteps")
-        m._raw.set_work_mode(WorkMode.SR_vFOC)
+        m.raw.set_work_mode(WorkMode.SR_vFOC)
         m.microsteps = 16
 
         if args.calibrate:
             banner("Step 5: CALIBRATING (motor must be unloaded)")
             m.calibrate()
             print("  calibration OK (re-read config to verify):")
-            print(json.dumps({k: v for k, v in m._raw.read_all_config().items() if k != "raw"}, indent=2))
+            print(json.dumps({k: v for k, v in m.raw.read_all_config().items() if k != "raw"}, indent=2))
         else:
             print("  (skipping calibration; pass --calibrate to run it)")
 

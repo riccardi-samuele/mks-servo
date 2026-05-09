@@ -113,7 +113,7 @@ class Motor:
 
     def __init__(self, profile: Profile, *, raw: Optional[RawDriver] = None):
         self.profile = profile
-        self._raw: Optional[RawDriver] = raw
+        self.raw: Optional[RawDriver] = raw
         self._owns_raw: bool = raw is None
         self._attached: bool = False
         # Runtime overrides (in-memory; not persisted to profile).
@@ -148,14 +148,14 @@ class Motor:
         """
         if self._attached:
             return
-        if self._raw is None:
+        if self.raw is None:
             tr = self.profile.transport
             if not tr.port:
                 raise RuntimeError(
                     "no transport.port: set it in the profile or pass `port=` "
                     "to Motor.from_profile()"
                 )
-            self._raw = RawDriver(
+            self.raw = RawDriver(
                 port=tr.port, baud=tr.baud,
                 addr=self.profile.driver.slave_addr,
                 timeout=tr.timeout_s,
@@ -168,14 +168,14 @@ class Motor:
         if not self._attached:
             return
         try:
-            if self._raw is not None:
-                self._raw.enable(False)
+            if self.raw is not None:
+                self.raw.enable(False)
         finally:
-            if self._owns_raw and self._raw is not None:
-                close = getattr(self._raw, "close", None)
+            if self._owns_raw and self.raw is not None:
+                close = getattr(self.raw, "close", None)
                 if callable(close):
                     close()
-                self._raw = None
+                self.raw = None
             self._attached = False
 
     def __enter__(self) -> "Motor":
@@ -188,9 +188,9 @@ class Motor:
     # ─── Internals ─────────────────────────────────────────────────────
     def _apply_profile_config(self) -> None:
         c = self.profile.config
-        self._raw.set_work_mode(c.mode)
-        self._raw.set_subdivision(c.microsteps)
-        self._raw.set_work_current_ma(c.work_current_ma)
+        self.raw.set_work_mode(c.mode)
+        self.raw.set_subdivision(c.microsteps)
+        self.raw.set_work_current_ma(c.work_current_ma)
 
     def _require_attached(self) -> None:
         if not self._attached:
@@ -242,14 +242,14 @@ class Motor:
             self.profile.mechanical.gear_ratio,
             self.profile.origin.encoder_offset_counts,
         )
-        self._raw.move_absolute_axis(counts, eff_rpm, eff_acc)
+        self.raw.move_absolute_axis(counts, eff_rpm, eff_acc)
         if blocking:
-            self._raw.wait_until_idle(timeout=timeout)
+            self.raw.wait_until_idle(timeout=timeout)
 
     def read(self) -> float:
         """Current absolute angle in output-axis degrees (gear_ratio + origin applied)."""
         self._require_attached()
-        counts = self._raw.read_encoder_addition()
+        counts = self.raw.read_encoder_addition()
         return _counts_to_angle(counts,
                                 self.profile.mechanical.gear_ratio,
                                 self.profile.origin.encoder_offset_counts)
@@ -260,7 +260,7 @@ class Motor:
         The firmware reports angle error in driver units where 51200 = 360°.
         """
         self._require_attached()
-        units = self._raw.read_angle_error()
+        units = self.raw.read_angle_error()
         motor_deg = units * 360.0 / _ANGLE_ERROR_UNITS_PER_REV
         return motor_deg / self.profile.mechanical.gear_ratio
 
@@ -274,21 +274,21 @@ class Motor:
             MotorStatus.HOMING,
             MotorStatus.CALIBRATING,
         }
-        return self._raw.read_motor_status() in _MOVING
+        return self.raw.read_motor_status() in _MOVING
 
     def emergency_stop(self) -> None:
         """Best-effort immediate stop. Never raises.
 
         Safe to call from signal handlers or before attach().
         """
-        if self._raw is None:
+        if self.raw is None:
             return
         try:
-            self._raw.emergency_stop()
+            self.raw.emergency_stop()
         except Exception:
             pass
         try:
-            self._raw.enable(False)
+            self.raw.enable(False)
         except Exception:
             pass
 
@@ -310,11 +310,11 @@ class Motor:
         """
         self._require_attached()
         if soft:
-            counts = self._raw.read_encoder_addition()
+            counts = self.raw.read_encoder_addition()
             self.profile.origin.encoder_offset_counts = counts
             self.profile.origin.set_in_firmware = False
         else:
-            self._raw.set_zero_point()
+            self.raw.set_zero_point()
             self.profile.origin.set_in_firmware = True
             self.profile.origin.encoder_offset_counts = 0
 
@@ -333,7 +333,7 @@ class Motor:
     def enable(self, state: bool = True) -> None:
         """Enable (True) or disable (False) the motor (cmd 0xF3)."""
         self._require_attached()
-        self._raw.enable(bool(state))
+        self.raw.enable(bool(state))
 
     def disable(self) -> None:
         """Alias for enable(False)."""
@@ -342,7 +342,7 @@ class Motor:
     def wait_until_idle(self, timeout: Optional[float] = None) -> None:
         """Block until the motor reports it has stopped, or raise on timeout."""
         self._require_attached()
-        self._raw.wait_until_idle(timeout=timeout)
+        self.raw.wait_until_idle(timeout=timeout)
 
     # ─── Level 1 properties ───────────────────────────────────────────
     @property
@@ -361,7 +361,7 @@ class Motor:
         if value < 0:
             raise LimitExceeded(kind="current", value=value, limit=0,
                                 message=f"current must be >= 0, got {value}")
-        self._raw.set_work_current_ma(value)
+        self.raw.set_work_current_ma(value)
         self.profile.config.work_current_ma = value
 
     @property
@@ -375,7 +375,7 @@ class Motor:
         value = int(value)
         if not (1 <= value <= 256):
             raise ValueError(f"microsteps must be in 1..256, got {value}")
-        self._raw.set_subdivision(value)
+        self.raw.set_subdivision(value)
         self.profile.config.microsteps = value
 
     @property
@@ -386,7 +386,7 @@ class Motor:
     @direction.setter
     def direction(self, value) -> None:
         self._require_attached()
-        self._raw.set_direction(value)
+        self.raw.set_direction(value)
         self.profile.config.direction = value
 
     @property
@@ -399,15 +399,15 @@ class Motor:
     @mode.setter
     def mode(self, value) -> None:
         self._require_attached()
-        self._raw.set_work_mode(value)
+        self.raw.set_work_mode(value)
         self.profile.config.mode = value
-        self._raw.restart()
+        self.raw.restart()
         # Firmware needs ~2s to come back online after restart (HIL finding).
         _time.sleep(2.0)
         # Re-apply the rest of the profile config so the driver state matches the
         # in-memory profile after the reset.
-        self._raw.set_subdivision(self.profile.config.microsteps)
-        self._raw.set_work_current_ma(self.profile.config.work_current_ma)
+        self.raw.set_subdivision(self.profile.config.microsteps)
+        self.raw.set_work_current_ma(self.profile.config.work_current_ma)
 
     @property
     def hold_current_pct(self) -> int:
@@ -422,7 +422,7 @@ class Motor:
             raise ValueError(
                 f"hold_current_pct must be 10..90 step 10, got {value}"
             )
-        self._raw.set_hold_current_pct(value)
+        self.raw.set_hold_current_pct(value)
         self.profile.config.hold_current_pct = value
 
     # Read-only telemetry
@@ -430,19 +430,19 @@ class Motor:
     def position_counts(self) -> int:
         """Cumulative encoder counts (raw, no gear/origin applied)."""
         self._require_attached()
-        return self._raw.read_encoder_addition()
+        return self.raw.read_encoder_addition()
 
     @property
     def speed_rpm(self) -> int:
         """Signed RPM (positive = CCW, negative = CW per firmware convention)."""
         self._require_attached()
-        return self._raw.read_speed_rpm()
+        return self.raw.read_speed_rpm()
 
     @property
     def status(self):
         """Current MotorStatus enum value."""
         self._require_attached()
-        return self._raw.read_motor_status()
+        return self.raw.read_motor_status()
 
     @property
     def enabled(self) -> bool:
@@ -452,7 +452,7 @@ class Motor:
         the last `enable(...)` call. There is no firmware-side query for this.
         """
         self._require_attached()
-        return bool(getattr(self._raw, "_enabled", False))
+        return bool(getattr(self.raw, "_enabled", False))
 
     # Runtime limit overrides (in-memory, NOT persisted to profile)
     @property
@@ -497,23 +497,23 @@ class Motor:
         previous_current = self.profile.config.work_current_ma
 
         try:
-            self._raw.enable(False)
+            self.raw.enable(False)
             _time.sleep(_CALIB_DELAY_S)
-            self._raw.set_work_mode(WorkMode.SR_vFOC)
+            self.raw.set_work_mode(WorkMode.SR_vFOC)
             _time.sleep(_CALIB_DELAY_S)
-            self._raw.set_subdivision(16)
+            self.raw.set_subdivision(16)
             _time.sleep(_CALIB_DELAY_S)
-            self._raw.set_work_current_ma(int(current_ma))
+            self.raw.set_work_current_ma(int(current_ma))
             _time.sleep(_CALIB_DELAY_S)
 
             # Issue the calibrate opcode. RawDriver.calibrate() raises
             # CalibrationFailed on status=2; let that propagate.
-            self._raw.calibrate()
+            self.raw.calibrate()
 
             # Poll for completion (or timeout).
             deadline = _time.monotonic() + timeout
             while True:
-                status = self._raw.read_motor_status()
+                status = self.raw.read_motor_status()
                 if status != MotorStatus.CALIBRATING:
                     break
                 if _time.monotonic() > deadline:
@@ -526,7 +526,7 @@ class Motor:
         finally:
             # Always restore previous current — best effort, swallow errors.
             try:
-                self._raw.set_work_current_ma(previous_current)
+                self.raw.set_work_current_ma(previous_current)
             except Exception:
                 pass
 
@@ -538,7 +538,7 @@ class Motor:
         microsteps, work_current_ma).
         """
         self._require_attached()
-        self._raw.restart()
+        self.raw.restart()
         _time.sleep(2.0)
         self._apply_profile_config()
 
@@ -552,4 +552,4 @@ class Motor:
         in sync with the profile.
         """
         self._require_attached()
-        self._raw.restore_defaults()
+        self.raw.restore_defaults()

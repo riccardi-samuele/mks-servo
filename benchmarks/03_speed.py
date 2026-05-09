@@ -44,12 +44,12 @@ def run_s1(m: Motor, run_dir: Path) -> None:
         time.sleep(0.5)
         sweep = list(range(50, max_rated, 100)) + [max_rated]
         for cmd_rpm in sweep:
-            m._raw.move_speed(rpm=int(cmd_rpm), acc=10, direction=Direction.CW)
+            m.raw.move_speed(rpm=int(cmd_rpm), acc=10, direction=Direction.CW)
             time.sleep(2.5)
             measured = m.speed_rpm
             rows.append({"mode": mode_name, "cmd_rpm": int(cmd_rpm), "measured_rpm": measured})
             print(f"  {mode_name:>8s}  cmd={cmd_rpm:>4d}  meas={measured:>5d}")
-        m._raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
+        m.raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
         time.sleep(1.5)
 
     with csv_path.open("w", newline="") as f:
@@ -86,9 +86,9 @@ def run_s2(m: Motor, run_dir: Path) -> None:
     rows = []
 
     for acc in accs:
-        m._raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        m.raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
         time.sleep(1.0)
-        m._raw.move_speed(rpm=target_rpm, acc=acc, direction=Direction.CW)
+        m.raw.move_speed(rpm=target_rpm, acc=acc, direction=Direction.CW)
         t0 = time.monotonic()
         while True:
             v = abs(m.speed_rpm)
@@ -97,7 +97,7 @@ def run_s2(m: Motor, run_dir: Path) -> None:
             if v >= target_rpm or t > 8000:
                 break
             time.sleep(0.01)
-        m._raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        m.raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
         time.sleep(1.5)
 
     with csv_path.open("w", newline="") as f:
@@ -138,20 +138,20 @@ def run_s3(m: Motor, run_dir: Path) -> None:
     csv_path = run_dir / "s3_stall.csv"
     rows = []
 
-    m._raw.move_absolute_axis(0, rpm=300, acc=20)
+    m.raw.move_absolute_axis(0, rpm=300, acc=20)
     m.wait_until_idle(timeout=15.0)
 
     for rpm in rpms:
         try:
             origin = m.position_counts
             target = origin + 10 * 0x4000
-            m._raw.move_absolute_axis(target, rpm=rpm, acc=50)
+            m.raw.move_absolute_axis(target, rpm=rpm, acc=50)
             m.wait_until_idle(timeout=30.0)
             time.sleep(0.3)
             measured = m.position_counts
             residual_counts = measured - target
             residual_deg = encoder_counts_to_degrees(residual_counts)
-            angle_err_units = m._raw.read_angle_error()
+            angle_err_units = m.raw.read_angle_error()
             print(f"  rpm={rpm:>4}  residual={residual_deg:+.4f}°  angle_err={angle_err_units}")
             rows.append({"rpm": rpm, "residual_deg": residual_deg,
                          "angle_err_units": angle_err_units, "ok": abs(residual_deg) < 1.0})
@@ -160,8 +160,8 @@ def run_s3(m: Motor, run_dir: Path) -> None:
             rows.append({"rpm": rpm, "residual_deg": float("nan"),
                          "angle_err_units": -1, "ok": False})
             try:
-                m._raw.release_protection()
-                m._raw.move_absolute_axis(0, rpm=300, acc=20)
+                m.raw.release_protection()
+                m.raw.move_absolute_axis(0, rpm=300, acc=20)
                 m.wait_until_idle(timeout=15.0)
             except Exception:
                 pass
@@ -215,7 +215,7 @@ def main() -> int:
                     print(f"  (skipping {tid})")
         finally:
             try:
-                m._raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
+                m.raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
                 time.sleep(0.5)
             finally:
                 m.enable(False)
