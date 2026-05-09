@@ -75,3 +75,35 @@ def test_parse_frame_bad_header():
 def test_parse_frame_too_short():
     with pytest.raises(ProtocolError):
         parse_frame(bytes.fromhex("FB 01"))
+
+
+from unittest.mock import MagicMock
+from mks_servo.protocol import transact
+from mks_servo.exceptions import CommTimeout
+
+
+def _fake_serial(reply: bytes):
+    ser = MagicMock()
+    ser.read.return_value = reply
+    ser.in_waiting = len(reply)
+    return ser
+
+
+def test_transact_round_trip():
+    ser = _fake_serial(bytes.fromhex("FB 01 80 01 7D"))
+    payload = transact(ser, addr=1, code=0x80, data=b"\x00", expect_payload_len=1, timeout=0.1)
+    assert payload == b"\x01"
+    sent = ser.write.call_args[0][0]
+    assert sent == bytes.fromhex("FA 01 80 00 7B")
+
+
+def test_transact_timeout():
+    ser = _fake_serial(b"")  # no reply
+    with pytest.raises(CommTimeout):
+        transact(ser, addr=1, code=0x30, expect_payload_len=6, timeout=0.05)
+
+
+def test_transact_truncated_response():
+    ser = _fake_serial(bytes.fromhex("FB 01"))  # only 2 bytes
+    with pytest.raises(CommTimeout):
+        transact(ser, addr=1, code=0x80, data=b"\x00", expect_payload_len=1, timeout=0.05)
