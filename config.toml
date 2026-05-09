@@ -2,7 +2,7 @@
 port = "/dev/ttyUSB0"
 baud = 38400
 slave_addr = 1
-timeout = 0.5
+timeout = 3.0
 
 [setup]
 voltage_v = 12
