@@ -1,10 +1,11 @@
 """Profile subcommands. Filled in by Tasks 26-29 of the v0.1.0 plan."""
 from __future__ import annotations
 
+import io
 from pathlib import Path
 import click
 
-from mks_servo.profile import Profile
+from mks_servo.profile import Profile, _profile_to_dict, _yaml
 from mks_servo.exceptions import ProfileError
 from mks_servo.raw import RawDriver
 
@@ -82,6 +83,23 @@ def validate_cmd(name_or_path: str) -> None:
 
 
 @click.command()
-def show_cmd() -> None:
-    """(Stub — implemented in Task 29.)"""
-    raise NotImplementedError("show: implemented in Task 29")
+@click.argument("name_or_path")
+@click.option("--section", default=None,
+              help="Print only this top-level section "
+                   "(driver/config/limits/...)")
+def show_cmd(name_or_path: str, section: str | None) -> None:
+    """Print the resolved profile as YAML."""
+    try:
+        prof = Profile.load(name_or_path)
+    except ProfileError as e:
+        raise click.ClickException(str(e)) from e
+
+    click.echo(f"# loaded from: {prof.path}")
+    data = _profile_to_dict(prof)
+    if section is not None:
+        if section not in data:
+            raise click.ClickException(f"unknown section: {section!r}")
+        data = {section: data[section]}
+    buf = io.StringIO()
+    _yaml.dump(data, buf)
+    click.echo(buf.getvalue(), nl=False)
