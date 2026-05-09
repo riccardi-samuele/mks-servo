@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from mks_servo import MKSServo42D
 from mks_servo.constants import WorkMode
 from mks_servo.driver import degrees_to_encoder_counts

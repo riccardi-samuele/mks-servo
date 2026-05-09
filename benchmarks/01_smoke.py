@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from mks_servo import MKSServo42D, MotorStatus
 from mks_servo.constants import WorkMode
 from benchmarks._common import banner, load_config, make_run_dir
