@@ -121,6 +121,8 @@ class Profile:
 # Validation logic belongs to Task 6 and is NOT included here.
 # ---------------------------------------------------------------------------
 
+import os  # noqa: E402
+
 from ruamel.yaml import YAML  # noqa: E402  (import after dataclasses section)
 from mks_servo.exceptions import ProfileError  # noqa: E402
 
@@ -241,17 +243,52 @@ def _load_yaml_path(path: Path) -> Profile:
     return _profile_from_dict(dict(data), path=path)
 
 
-def _profile_load(cls, name_or_path):
-    """Load a profile from an explicit file path (.yaml/.yml).
+def _user_profiles_dir() -> Path:
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    return home / ".config" / "mks-servo" / "profiles"
 
-    This is the Task-5 partial implementation. Only explicit path-based
-    loading is supported. Hierarchical lookup by name (searching standard
-    directories) is deferred to Task 7 and will raise ProfileError here.
+
+def _builtin_templates_dir() -> Path:
+    return Path(__file__).parent / "profiles" / "_templates"
+
+
+def _profile_load(cls, name_or_path):
+    """Load a profile.
+
+    If `name_or_path` ends with .yaml/.yml AND points to an existing file,
+    that file is loaded directly. Otherwise the name is searched in:
+      1. ./profiles/<name>.yaml         (project)
+      2. ~/.config/mks-servo/profiles/<name>.yaml   (user)
+      3. <package>/profiles/_templates/<name>.yaml  (built-in)
     """
-    p = Path(str(name_or_path))
-    if p.suffix in (".yaml", ".yml") and p.exists():
-        return _load_yaml_path(p)
-    raise ProfileError(f"profile not found: {name_or_path!r}")
+    candidate = Path(str(name_or_path))
+    if candidate.suffix in (".yaml", ".yml") and candidate.exists():
+        return _load_yaml_path(candidate.resolve())
+
+    name = str(name_or_path)
+    if not name.endswith((".yaml", ".yml")):
+        filename = f"{name}.yaml"
+    else:
+        filename = name
+
+    search_dirs = [
+        Path.cwd() / "profiles",
+        _user_profiles_dir(),
+        _builtin_templates_dir(),
+    ]
+    for d in search_dirs:
+        p = d / filename
+        if p.exists():
+            prof = _load_yaml_path(p.resolve())
+            # Templates: don't tie save() to the bundled file.
+            if d == _builtin_templates_dir():
+                prof.path = None
+            return prof
+
+    raise ProfileError(
+        f"profile not found: {name_or_path!r} "
+        f"(searched: {[str(d) for d in search_dirs]})"
+    )
 
 
 Profile.load = classmethod(_profile_load)  # type: ignore[assignment]
