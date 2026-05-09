@@ -57,3 +57,15 @@ class MKSServo42D:
         if ok:
             self._enabled = on
         return ok
+
+    def read_encoder(self) -> tuple[int, int]:
+        """Cmd 0x30: returns (carry int32 BE, value uint16 BE in 0..0x3FFF)."""
+        payload = self._txn(OpCode.READ_ENCODER, expect_payload_len=6)
+        carry = int.from_bytes(payload[0:4], "big", signed=True)
+        value = int.from_bytes(payload[4:6], "big", signed=False)
+        return carry, value
+
+    def read_encoder_addition(self) -> int:
+        """Cmd 0x31: cumulative encoder value (int48 BE). 0x4000 per CW turn."""
+        payload = self._txn(OpCode.READ_ENCODER_ADDITION, expect_payload_len=6)
+        return int.from_bytes(payload, "big", signed=True)

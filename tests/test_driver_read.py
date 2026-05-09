@@ -35,3 +35,29 @@ def test_driver_context_manager_disables_motor_on_exit(fake_serial):
     # Look for an enable(False) frame: FA 01 F3 00 EE
     writes = [c.args[0] for c in fake_serial.write.call_args_list]
     assert any(w.startswith(b"\xfa\x01\xf3\x00") for w in writes)
+
+
+def test_read_encoder_returns_carry_and_value(fake_serial):
+    fake_serial.read.return_value = bytes.fromhex("FB 01 30 FF FF FF FF 22 69 B3")
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        carry, value = m.read_encoder()
+    assert carry == -1
+    assert value == 0x2269
+
+
+def test_read_encoder_addition_returns_int48(fake_serial):
+    body = bytes.fromhex("FB 01 31 00 00 00 00 7F FF")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        value = m.read_encoder_addition()
+    assert value == 0x7FFF
+
+
+def test_read_encoder_addition_negative(fake_serial):
+    body = bytes.fromhex("FB 01 31 FF FF FF FF C0 00")
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        value = m.read_encoder_addition()
+    assert value == -0x4000
