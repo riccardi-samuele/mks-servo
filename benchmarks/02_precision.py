@@ -80,7 +80,60 @@ def run_p1(m: MKSServo42D, run_dir: Path, iters: int = 100) -> None:
     print(f"  → {csv_path.name} + p1_repeatability_hist.png")
 
 
-TEST_FUNCS = {"P1": run_p1}
+def run_p3(m: MKSServo42D, run_dir: Path, iters: int = 20) -> None:
+    """P3: error vs speed — final residual after a 1-turn move at varying RPM."""
+    banner(f"P3: error vs speed (iters per RPM = {iters})")
+    rpms = [50, 100, 300, 600, 1000, 1500, 2000, 3000]
+    csv_path = run_dir / "p3_error_vs_speed.csv"
+    rows = []
+
+    m.move_absolute_axis(0, rpm=300, acc=10)
+    m.wait_until_idle(timeout=15.0)
+
+    for rpm in rpms:
+        for i in range(iters):
+            origin = m.read_encoder_addition()
+            target = origin + degrees_to_encoder_counts(360.0)
+            acc = 10 if rpm <= 800 else 50
+            m.move_absolute_axis(target, rpm=rpm, acc=acc)
+            m.wait_until_idle(timeout=20.0)
+            time.sleep(0.05)
+            measured = m.read_encoder_addition()
+            residual_counts = measured - target
+            residual_deg = encoder_counts_to_degrees(residual_counts)
+            rows.append({"rpm": rpm, "iter": i, "residual_deg": residual_deg})
+        last = [r["residual_deg"] for r in rows[-iters:]]
+        rms = float(np.sqrt(np.mean(np.square(last))))
+        peak = float(np.max(np.abs(last)))
+        print(f"  rpm={rpm:>4}  RMS={rms:.4f}°  peak={peak:.4f}°")
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["rpm", "iter", "residual_deg"])
+        w.writeheader()
+        w.writerows(rows)
+
+    by_rpm = {}
+    for r in rows:
+        by_rpm.setdefault(r["rpm"], []).append(r["residual_deg"])
+    rpms_sorted = sorted(by_rpm.keys())
+    rms_arr = [float(np.sqrt(np.mean(np.square(by_rpm[rp])))) for rp in rpms_sorted]
+    peak_arr = [float(np.max(np.abs(by_rpm[rp]))) for rp in rpms_sorted]
+
+    fig, ax = plt.subplots()
+    ax.plot(rpms_sorted, rms_arr, marker="o", label="RMS")
+    ax.plot(rpms_sorted, peak_arr, marker="s", label="peak")
+    ax.set_xlabel("RPM")
+    ax.set_ylabel("residual [deg]")
+    ax.set_title("P3: position error vs commanded RPM")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(run_dir / "plots" / "p3_error_vs_speed.png", dpi=120)
+    plt.close(fig)
+    print(f"  → {csv_path.name} + p3_error_vs_speed.png")
+
+
+TEST_FUNCS = {"P1": run_p1, "P3": run_p3}
 
 
 def main() -> int:
