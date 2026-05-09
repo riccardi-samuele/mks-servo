@@ -69,3 +69,18 @@ class MKSServo42D:
         """Cmd 0x31: cumulative encoder value (int48 BE). 0x4000 per CW turn."""
         payload = self._txn(OpCode.READ_ENCODER_ADDITION, expect_payload_len=6)
         return int.from_bytes(payload, "big", signed=True)
+
+    def read_speed_rpm(self) -> int:
+        """Cmd 0x32: signed RPM (>0 = CCW, <0 = CW)."""
+        payload = self._txn(OpCode.READ_SPEED_RPM, expect_payload_len=2)
+        return int.from_bytes(payload, "big", signed=True)
+
+    def read_pulses(self) -> int:
+        """Cmd 0x33: pulses received (int32 BE)."""
+        payload = self._txn(OpCode.READ_PULSES, expect_payload_len=4)
+        return int.from_bytes(payload, "big", signed=True)
+
+    def read_angle_error(self) -> int:
+        """Cmd 0x39: angle error in driver units (51200 = 360°)."""
+        payload = self._txn(OpCode.READ_ANGLE_ERROR, expect_payload_len=4)
+        return int.from_bytes(payload, "big", signed=True)

@@ -61,3 +61,35 @@ def test_read_encoder_addition_negative(fake_serial):
     with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
         value = m.read_encoder_addition()
     assert value == -0x4000
+
+
+def test_read_speed_rpm_positive(fake_serial):
+    body = bytes.fromhex("FB 01 32") + (500).to_bytes(2, "big", signed=True)
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_speed_rpm() == 500
+
+
+def test_read_speed_rpm_negative(fake_serial):
+    body = bytes.fromhex("FB 01 32") + (-1500).to_bytes(2, "big", signed=True)
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_speed_rpm() == -1500
+
+
+def test_read_pulses(fake_serial):
+    body = bytes.fromhex("FB 01 33") + (32000).to_bytes(4, "big", signed=True)
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_pulses() == 32000
+
+
+def test_read_angle_error_one_degree(fake_serial):
+    body = bytes.fromhex("FB 01 39") + (142).to_bytes(4, "big", signed=True)
+    crc = sum(body) & 0xFF
+    fake_serial.read.return_value = body + bytes([crc])
+    with MKSServo42D(port="/dev/ttyUSB0", baud=38400, addr=1) as m:
+        assert m.read_angle_error() == 142
