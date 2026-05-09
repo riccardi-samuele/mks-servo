@@ -15,10 +15,13 @@ manager, and the `model` read-only convenience property.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
-from mks_servo.exceptions import MotorNotAttached
+_logger = logging.getLogger("mks_servo.motor")
+
+from mks_servo.exceptions import LimitExceeded, MotorNotAttached
 from mks_servo.profile import Profile
 from mks_servo.raw import RawDriver
 
@@ -46,6 +49,29 @@ def _angle_to_counts(angle_deg: float, gear_ratio: float, origin_offset: int) ->
     motor_deg = angle_deg * gear_ratio
     counts = round(motor_deg / 360.0 * ENCODER_COUNTS_PER_REV)
     return counts - origin_offset
+
+
+def _apply_position_policy(angle_deg: float,
+                           min_deg: Optional[float],
+                           max_deg: Optional[float],
+                           policy: str) -> float:
+    if min_deg is None or max_deg is None:
+        return angle_deg
+    if min_deg <= angle_deg <= max_deg:
+        return angle_deg
+    limit = max_deg if angle_deg > max_deg else min_deg
+    if policy == "reject":
+        raise LimitExceeded(kind="position", value=angle_deg, limit=limit)
+    if policy == "clamp":
+        return max(min_deg, min(max_deg, angle_deg))
+    if policy == "warn":
+        _logger.warning(
+            "position limit exceeded: %.3f outside [%.3f, %.3f] (proceeding)",
+            angle_deg, min_deg, max_deg,
+        )
+        return angle_deg
+    raise LimitExceeded(kind="position", value=angle_deg, limit=limit,
+                        message=f"unknown on_violation policy: {policy!r}")
 
 
 class Motor:
@@ -171,6 +197,17 @@ class Motor:
             MotorNotAttached: if attach() has not been called.
         """
         self._require_attached()
+
+        # Use runtime overrides (set via the position_limits property in Task 19);
+        # fall back to profile values otherwise. In Task 11 the constructor
+        # initialised _position_limits from the profile, so this is the same
+        # source unless overridden later.
+        pos_min, pos_max = self._position_limits
+        angle_deg = _apply_position_policy(
+            angle_deg, pos_min, pos_max,
+            self.profile.limits.position.on_violation,
+        )
+
         eff_rpm = 300 if rpm is None else int(rpm)
         eff_acc = 50 if acc is None else int(acc)
         counts = _angle_to_counts(
