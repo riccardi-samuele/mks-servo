@@ -326,6 +326,3 @@ def encoder_counts_to_degrees(counts: int) -> float:
 def degrees_to_pulses(deg: float, microsteps: int = 16) -> int:
     return int(round(deg * NEMA17_FULL_STEPS * microsteps / 360))
 
-
-# Temporary alias kept for benchmarks during the v0.1.0 refactor; remove in Task 36.
-MKSServo42D = RawDriver

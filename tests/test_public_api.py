@@ -16,9 +16,3 @@ def test_version_string_present():
     import mks_servo
     assert hasattr(mks_servo, "__version__")
     assert mks_servo.__version__ == "0.1.0"
-
-
-def test_back_compat_alias_still_works():
-    """The MKSServo42D alias is still kept for benchmarks during v0.1.0."""
-    from mks_servo import MKSServo42D, RawDriver
-    assert MKSServo42D is RawDriver
