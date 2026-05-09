@@ -89,3 +89,51 @@ class MotorBus:
             except Exception:
                 pass
             self._motors.remove(motor)
+
+    def scan(self, addr_range=None, *,
+             create_profiles: bool = False,
+             output_dir: Optional[Path] = None,
+             force: bool = False,
+             timeout: float = 1.0) -> list[BusEntry]:
+        """Probe each address in the range; return discovered drivers.
+
+        Args:
+            addr_range: range of slave addresses to probe (default 1..16).
+            create_profiles: if True, generate profile YAMLs for each entry.
+            output_dir: directory for created profiles (default ./profiles).
+            force: overwrite existing profile files.
+            timeout: per-address probe timeout in seconds.
+        """
+        if addr_range is None:
+            addr_range = range(1, 17)
+        if output_dir is None:
+            output_dir = Path.cwd() / "profiles"
+
+        from mks_servo.exceptions import CommTimeout
+
+        entries: list[BusEntry] = []
+        for addr in addr_range:
+            raw = RawDriver(addr=addr, transport=self._transport, timeout=timeout)
+            try:
+                cfg = raw.read_all_config()
+            except CommTimeout:
+                continue
+            except Exception:
+                # Other errors: skip this address (probably a corrupt response).
+                continue
+
+            entry = BusEntry(addr=addr, model="servo42d", config=cfg)
+
+            if create_profiles:
+                output_dir.mkdir(parents=True, exist_ok=True)
+                target = output_dir / f"motor_{addr}.yaml"
+                if target.exists() and not force:
+                    # Skip; caller can re-run with force=True to overwrite.
+                    continue
+                prof = Profile.from_driver(raw, id=f"motor_{addr}")
+                prof.transport.port = self._transport.port
+                prof.save(target)
+                entry.profile = prof
+
+            entries.append(entry)
+        return entries
