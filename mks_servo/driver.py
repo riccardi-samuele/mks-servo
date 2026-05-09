@@ -257,6 +257,21 @@ class MKSServo42D:
         payload = self._txn(OpCode.MOVE_ABS_AXIS, data, expect_payload_len=1)
         return payload == b"\x01"
 
+    def wait_until_idle(self, timeout: float = 10.0, poll_interval: float = 0.05) -> None:
+        """Poll cmd 0xF1 until status returns to STOPPED.
+        Raises MotorFault if timeout is exceeded.
+        """
+        from .exceptions import MotorFault
+        deadline = time.monotonic() + timeout
+        while True:
+            st = self.read_motor_status()
+            if st == MotorStatus.STOPPED:
+                return
+            if time.monotonic() >= deadline:
+                raise MotorFault(f"motor still {st.name} after {timeout}s")
+            if poll_interval > 0:
+                time.sleep(poll_interval)
+
 
 def degrees_to_encoder_counts(deg: float) -> int:
     return int(round(deg * ENCODER_COUNTS_PER_REV / 360))

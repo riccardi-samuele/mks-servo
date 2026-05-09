@@ -109,3 +109,21 @@ def test_move_relative_axis_negative(fake_serial):
     sent = fake_serial.write.call_args[0][0]
     expected_body = bytes.fromhex("FA 01 F4 02 58 02 FF FF C0 00")
     assert sent[:-1] == expected_body
+
+
+def test_wait_until_idle_returns_when_stopped(fake_serial):
+    fake_serial.read.side_effect = [
+        _resp(1, 0xF1, b"\x04"),
+        _resp(1, 0xF1, b"\x04"),
+        _resp(1, 0xF1, b"\x01"),
+    ]
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        m.wait_until_idle(timeout=2.0, poll_interval=0.0)
+
+
+def test_wait_until_idle_raises_on_timeout(fake_serial):
+    fake_serial.read.return_value = _resp(1, 0xF1, b"\x04")
+    from mks_servo.exceptions import MKSError
+    with MKSServo42D("/dev/ttyUSB0", 38400, 1) as m:
+        with pytest.raises(MKSError):
+            m.wait_until_idle(timeout=0.1, poll_interval=0.0)
