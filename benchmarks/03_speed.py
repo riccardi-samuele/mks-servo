@@ -16,9 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mks_servo import MKSServo42D
+from mks_servo import Motor
 from mks_servo.constants import Direction, WorkMode
-from mks_servo.driver import degrees_to_encoder_counts, encoder_counts_to_degrees
+from mks_servo.profile import Profile, DriverSection, TransportSection
+from mks_servo.raw import degrees_to_encoder_counts, encoder_counts_to_degrees
 from benchmarks._common import banner, load_config, make_run_dir
 
 
@@ -29,29 +30,26 @@ MODES = {
 }
 
 
-def run_s1(m: MKSServo42D, run_dir: Path) -> None:
+def run_s1(m: Motor, run_dir: Path) -> None:
     banner("S1: max sustainable RPM per mode")
     csv_path = run_dir / "s1_max_rpm_by_mode.csv"
     rows = []
     for mode_name, (mode, max_rated) in MODES.items():
         m.enable(False)
         time.sleep(0.5)
-        m.set_work_mode(mode)
+        m.microsteps = 16
         time.sleep(0.5)
-        m.set_subdivision(16)
-        time.sleep(0.5)
-        m.restart()  # required: mode-dependent RPM cap doesn't apply otherwise
-        time.sleep(2.0)
+        m.mode = mode  # setter handles set_work_mode + restart + 2 s sleep
         m.enable(True)
         time.sleep(0.5)
         sweep = list(range(50, max_rated, 100)) + [max_rated]
         for cmd_rpm in sweep:
-            m.move_speed(rpm=int(cmd_rpm), acc=10, direction=Direction.CW)
+            m._raw.move_speed(rpm=int(cmd_rpm), acc=10, direction=Direction.CW)
             time.sleep(2.5)
-            measured = m.read_speed_rpm()
+            measured = m.speed_rpm
             rows.append({"mode": mode_name, "cmd_rpm": int(cmd_rpm), "measured_rpm": measured})
             print(f"  {mode_name:>8s}  cmd={cmd_rpm:>4d}  meas={measured:>5d}")
-        m.move_speed(rpm=0, acc=10, direction=Direction.CW)
+        m._raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
         time.sleep(1.5)
 
     with csv_path.open("w", newline="") as f:
@@ -76,11 +74,11 @@ def run_s1(m: MKSServo42D, run_dir: Path) -> None:
     plt.close(fig)
 
 
-def run_s2(m: MKSServo42D, run_dir: Path) -> None:
-    """S2: acceleration curve — sample read_speed_rpm() while ramping to 2000 RPM."""
+def run_s2(m: Motor, run_dir: Path) -> None:
+    """S2: acceleration curve — sample speed_rpm while ramping to 2000 RPM."""
     banner("S2: acceleration curve (target 2000 RPM)")
     m.enable(False)
-    m.set_work_mode(WorkMode.SR_vFOC)
+    m.mode = WorkMode.SR_vFOC  # setter handles restart + 2 s sleep
     m.enable(True)
     target_rpm = 2000
     accs = [1, 50, 100, 200, 255]
@@ -88,18 +86,18 @@ def run_s2(m: MKSServo42D, run_dir: Path) -> None:
     rows = []
 
     for acc in accs:
-        m.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        m._raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
         time.sleep(1.0)
-        m.move_speed(rpm=target_rpm, acc=acc, direction=Direction.CW)
+        m._raw.move_speed(rpm=target_rpm, acc=acc, direction=Direction.CW)
         t0 = time.monotonic()
         while True:
-            v = abs(m.read_speed_rpm())
+            v = abs(m.speed_rpm)
             t = (time.monotonic() - t0) * 1000
             rows.append({"acc": acc, "t_ms": int(t), "rpm": v})
             if v >= target_rpm or t > 8000:
                 break
             time.sleep(0.01)
-        m.move_speed(rpm=0, acc=255, direction=Direction.CW)
+        m._raw.move_speed(rpm=0, acc=255, direction=Direction.CW)
         time.sleep(1.5)
 
     with csv_path.open("w", newline="") as f:
@@ -126,32 +124,34 @@ def run_s2(m: MKSServo42D, run_dir: Path) -> None:
     plt.close(fig)
 
 
-def run_s3(m: MKSServo42D, run_dir: Path) -> None:
+def run_s3(m: Motor, run_dir: Path) -> None:
     """S3: stall threshold — 10-turn move at increasing RPM in SR_CLOSE mode."""
     banner("S3: stall threshold")
-    m.enable(False); time.sleep(0.5)
-    m.set_work_mode(WorkMode.SR_CLOSE); time.sleep(0.5)
-    m.set_subdivision(16); time.sleep(0.5)
-    m.restart(); time.sleep(2.0)  # required for mode change to apply
-    m.enable(True); time.sleep(0.5)
+    m.enable(False)
+    time.sleep(0.5)
+    m.microsteps = 16
+    time.sleep(0.5)
+    m.mode = WorkMode.SR_CLOSE  # setter handles set_work_mode + restart + 2 s sleep
+    m.enable(True)
+    time.sleep(0.5)
     rpms = [500, 1000, 1300, 1500, 1700, 2000]
     csv_path = run_dir / "s3_stall.csv"
     rows = []
 
-    m.move_absolute_axis(0, rpm=300, acc=20)
+    m._raw.move_absolute_axis(0, rpm=300, acc=20)
     m.wait_until_idle(timeout=15.0)
 
     for rpm in rpms:
         try:
-            origin = m.read_encoder_addition()
+            origin = m.position_counts
             target = origin + 10 * 0x4000
-            m.move_absolute_axis(target, rpm=rpm, acc=50)
+            m._raw.move_absolute_axis(target, rpm=rpm, acc=50)
             m.wait_until_idle(timeout=30.0)
             time.sleep(0.3)
-            measured = m.read_encoder_addition()
+            measured = m.position_counts
             residual_counts = measured - target
             residual_deg = encoder_counts_to_degrees(residual_counts)
-            angle_err_units = m.read_angle_error()
+            angle_err_units = m._raw.read_angle_error()
             print(f"  rpm={rpm:>4}  residual={residual_deg:+.4f}°  angle_err={angle_err_units}")
             rows.append({"rpm": rpm, "residual_deg": residual_deg,
                          "angle_err_units": angle_err_units, "ok": abs(residual_deg) < 1.0})
@@ -160,8 +160,8 @@ def run_s3(m: MKSServo42D, run_dir: Path) -> None:
             rows.append({"rpm": rpm, "residual_deg": float("nan"),
                          "angle_err_units": -1, "ok": False})
             try:
-                m.release_protection()
-                m.move_absolute_axis(0, rpm=300, acc=20)
+                m._raw.release_protection()
+                m._raw.move_absolute_axis(0, rpm=300, acc=20)
                 m.wait_until_idle(timeout=15.0)
             except Exception:
                 pass
@@ -196,10 +196,16 @@ def main() -> int:
     run_dir = make_run_dir("speed")
     print(f"Output dir: {run_dir}")
 
-    with MKSServo42D(
-        port=cfg["serial"]["port"], baud=cfg["serial"]["baud"],
-        addr=cfg["serial"]["slave_addr"], timeout=cfg["serial"]["timeout"],
-    ) as m:
+    prof = Profile(
+        id="bench_speed",
+        driver=DriverSection(model="servo42d", slave_addr=cfg["serial"]["slave_addr"]),
+        transport=TransportSection(
+            port=cfg["serial"]["port"],
+            baud=cfg["serial"]["baud"],
+            timeout_s=cfg["serial"]["timeout"],
+        ),
+    )
+    with Motor(prof) as m:
         try:
             for tid in [t.strip().upper() for t in args.tests.split(",")]:
                 fn = TEST_FUNCS.get(tid)
@@ -209,7 +215,7 @@ def main() -> int:
                     print(f"  (skipping {tid})")
         finally:
             try:
-                m.move_speed(rpm=0, acc=10, direction=Direction.CW)
+                m._raw.move_speed(rpm=0, acc=10, direction=Direction.CW)
                 time.sleep(0.5)
             finally:
                 m.enable(False)
