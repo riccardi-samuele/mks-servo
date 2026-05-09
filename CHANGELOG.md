@@ -2,6 +2,42 @@
 
 All notable changes to mks-servo are documented here.
 
+## [0.2.0] — 2026-05-10 (Multi-motor + raw promoted)
+
+### Added
+- `MotorBus(port, baud)` — multi-motor coordinator on a shared RS485 bus.
+  `bus.add(profile)` constructs a `Motor` sharing the bus's transport and
+  attaches it automatically. `bus.remove(motor)` detaches.
+- `MotorBus.scan(addr_range)` — probe a range of slave addresses and return
+  a list of `BusEntry` for responsive drivers. Optional `create_profiles=True`
+  generates `motor_<addr>.yaml` files.
+- `SharedTransport` — wraps `serial.Serial` + `threading.Lock`, enabling
+  multiple `RawDriver` instances on one physical bus with serialised I/O.
+- CLI `mks-servo bus discover --port X` (with `--range`, `--baud`, `--timeout`,
+  `--create-profiles`, `--out`, `--force`).
+- `Profile.snapshot_from(motor)` — refreshes the `config:` section from the
+  driver's current state; does not save (caller invokes `save()`).
+- `Motor(profile, auto_save=True)` — opt-in profile write-through. After
+  every Level-1 mutating operation (setters, `set_origin`, `calibrate`,
+  `restart`), the profile is persisted to YAML. Default `auto_save=False`
+  preserves v0.1.0 behaviour.
+- `examples/single_motor.py`, `examples/dual_motor_bus.py`.
+- `docs/multi-motor.md` — addressing, discovery, locking notes.
+- Public `motor.raw` (Level 3 official API).
+
+### Changed (BREAKING)
+- `motor._raw` removed; use `motor.raw` instead. Pre-v1.0 break per the
+  decisions log in the vision document.
+- `RawDriver.__init__(transport=...)` accepts an external `SharedTransport`;
+  when provided, `port` is optional and `open()`/`close()` become no-ops
+  (the bus owns lifecycle). Backwards compatible: `RawDriver(port="/dev/...")`
+  still works as before.
+
+### Internal
+- `RawDriver._txn()` now routes exclusively through `SharedTransport.transact()`;
+  the module-level `transact()` function is kept for direct use but not
+  called by `RawDriver` anymore.
+
 ## [0.1.0] — 2026-05-10 (Foundation single-motor)
 
 ### Added
