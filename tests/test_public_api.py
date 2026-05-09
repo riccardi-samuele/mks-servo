@@ -10,6 +10,7 @@ def test_top_level_exports():
     assert hasattr(mks_servo, "MotorNotAttached")
     assert hasattr(mks_servo, "WorkMode")
     assert hasattr(mks_servo, "Direction")
+    assert hasattr(mks_servo, "SharedTransport")
 
 
 def test_version_string_present():
