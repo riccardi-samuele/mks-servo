@@ -16,6 +16,7 @@ manager, and the `model` read-only convenience property.
 from __future__ import annotations
 
 import logging
+import time as _time
 from pathlib import Path
 from typing import Optional, Union
 
@@ -335,6 +336,26 @@ class Motor:
         self._require_attached()
         self._raw.set_direction(value)
         self.profile.config.direction = value
+
+    @property
+    def mode(self):
+        """Driver work mode (WorkMode enum). Setter triggers an automatic restart()
+        because the firmware re-reads the mode-dependent RPM cap only at boot.
+        """
+        return self.profile.config.mode
+
+    @mode.setter
+    def mode(self, value) -> None:
+        self._require_attached()
+        self._raw.set_work_mode(value)
+        self.profile.config.mode = value
+        self._raw.restart()
+        # Firmware needs ~2s to come back online after restart (HIL finding).
+        _time.sleep(2.0)
+        # Re-apply the rest of the profile config so the driver state matches the
+        # in-memory profile after the reset.
+        self._raw.set_subdivision(self.profile.config.microsteps)
+        self._raw.set_work_current_ma(self.profile.config.work_current_ma)
 
     @property
     def hold_current_pct(self) -> int:
