@@ -113,3 +113,145 @@ class Profile:
     mechanical: MechanicalSection = field(default_factory=MechanicalSection)
     characterization: CharacterizationSection = field(default_factory=CharacterizationSection)
     path: Optional[Path] = None
+
+
+# ---------------------------------------------------------------------------
+# I/O — Task 5: path-based loading with schema_version check.
+# Hierarchical lookup by name is added in Task 7.
+# Validation logic belongs to Task 6 and is NOT included here.
+# ---------------------------------------------------------------------------
+
+from ruamel.yaml import YAML  # noqa: E402  (import after dataclasses section)
+from mks_servo.exceptions import ProfileError  # noqa: E402
+
+_yaml = YAML(typ="rt")
+_yaml.preserve_quotes = True
+
+
+def _enum_from_name(enum_cls, name: str, field: str):
+    try:
+        return enum_cls[name]
+    except KeyError as e:
+        raise ProfileError(f"unknown {field}: {name!r}") from e
+
+
+def _to_datetime(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    raise ProfileError(f"invalid datetime: {value!r}")
+
+
+def _profile_from_dict(d: dict, path: Optional[Path]) -> Profile:
+    sv = d.get("schema_version")
+    if sv != 1:
+        raise ProfileError(f"unknown schema_version: {sv!r} (this build supports 1)")
+    if "id" not in d or "driver" not in d:
+        raise ProfileError("profile missing required keys: id, driver")
+
+    drv = d["driver"]
+    driver = DriverSection(
+        model=str(drv.get("model", "servo42d")),
+        firmware_min=str(drv.get("firmware_min", "1.0.6")),
+        slave_addr=int(drv["slave_addr"]),
+    )
+
+    cfg = d.get("config") or {}
+    config = ConfigSection(
+        mode=_enum_from_name(WorkMode, cfg.get("mode", "SR_vFOC"), "config.mode"),
+        microsteps=int(cfg.get("microsteps", 16)),
+        work_current_ma=int(cfg.get("work_current_ma", 1500)),
+        hold_current_pct=int(cfg.get("hold_current_pct", 50)),
+        direction=_enum_from_name(Direction, cfg.get("direction", "CW"), "config.direction"),
+    )
+
+    tr = d.get("transport") or {}
+    transport = TransportSection(
+        port=tr.get("port"),
+        baud=int(tr.get("baud", 38400)),
+        timeout_s=float(tr.get("timeout_s", 3.0)),
+    )
+
+    lim = d.get("limits") or {}
+    pos = lim.get("position") or {}
+    spd = lim.get("speed") or {}
+    cur = lim.get("current") or {}
+    limits = LimitsSection(
+        position=PositionLimit(
+            min_deg=pos.get("min_deg"),
+            max_deg=pos.get("max_deg"),
+            on_violation=pos.get("on_violation", "reject"),
+        ),
+        speed=SpeedLimit(
+            max_rpm_safe=spd.get("max_rpm_safe"),
+            on_violation=spd.get("on_violation", "clamp"),
+        ),
+        current=CurrentLimit(max_ma=int(cur.get("max_ma", 3000))),
+    )
+
+    org = d.get("origin") or {}
+    origin = OriginSection(
+        set_in_firmware=bool(org.get("set_in_firmware", True)),
+        encoder_offset_counts=int(org.get("encoder_offset_counts", 0)),
+    )
+
+    mech = d.get("mechanical") or {}
+    mechanical = MechanicalSection(
+        motor_model=str(mech.get("motor_model", "")),
+        full_steps_per_rev=int(mech.get("full_steps_per_rev", 200)),
+        gear_ratio=float(mech.get("gear_ratio", 1.0)),
+    )
+
+    ch = d.get("characterization") or {}
+    pr = ch.get("precision") or {}
+    sp = ch.get("speed") or {}
+    characterization = CharacterizationSection(
+        last_calibrated=_to_datetime(ch.get("last_calibrated")),
+        precision=PrecisionResults(sigma_deg=pr.get("sigma_deg"),
+                                   peak_deg=pr.get("peak_deg")),
+        speed=SpeedResults(max_measured_rpm=sp.get("max_measured_rpm"),
+                           voltage_v=sp.get("voltage_v")),
+    )
+
+    return Profile(
+        id=str(d["id"]),
+        driver=driver,
+        schema_version=1,
+        description=str(d.get("description", "")),
+        created_at=_to_datetime(d.get("created_at")),
+        updated_at=_to_datetime(d.get("updated_at")),
+        transport=transport,
+        config=config,
+        limits=limits,
+        origin=origin,
+        mechanical=mechanical,
+        characterization=characterization,
+        path=path,
+    )
+
+
+def _load_yaml_path(path: Path) -> Profile:
+    with path.open("r") as f:
+        data = _yaml.load(f)
+    if data is None:
+        raise ProfileError(f"empty YAML file: {path}")
+    return _profile_from_dict(dict(data), path=path)
+
+
+def _profile_load(cls, name_or_path):
+    """Load a profile from an explicit file path (.yaml/.yml).
+
+    This is the Task-5 partial implementation. Only explicit path-based
+    loading is supported. Hierarchical lookup by name (searching standard
+    directories) is deferred to Task 7 and will raise ProfileError here.
+    """
+    p = Path(str(name_or_path))
+    if p.suffix in (".yaml", ".yml") and p.exists():
+        return _load_yaml_path(p)
+    raise ProfileError(f"profile not found: {name_or_path!r}")
+
+
+Profile.load = classmethod(_profile_load)  # type: ignore[assignment]
