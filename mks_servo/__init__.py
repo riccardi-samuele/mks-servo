@@ -14,6 +14,9 @@ from mks_servo.profile import Profile
 from mks_servo.motor import Motor
 from mks_servo.bus import MotorBus, BusEntry
 from mks_servo.namespaces import AdvancedNamespace, DiagnosticsNamespace
+from mks_servo.characterize import (
+    CharacterizationSuite, SuiteResult, P1Result, P3Result, P5Result, S2Result,
+)
 
 __version__ = "0.1.0"
 
@@ -25,5 +28,7 @@ __all__ = [
     "MotorFault", "CalibrationFailed",
     "ProfileError", "LimitExceeded", "MotorNotAttached",
     "AdvancedNamespace", "DiagnosticsNamespace",
+    "CharacterizationSuite", "SuiteResult",
+    "P1Result", "P3Result", "P5Result", "S2Result",
     "__version__",
 ]

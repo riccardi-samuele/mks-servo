@@ -228,3 +228,40 @@ def _run_s2_acceleration(self, *,
 
 CharacterizationSuite.run_p5_follow_error = _run_p5_follow_error
 CharacterizationSuite.run_s2_acceleration = _run_s2_acceleration
+
+
+def _run_mvp(self) -> SuiteResult:
+    """Run the standard MVP characterization (P1 + P3 + P5 + S2)."""
+    self.run_p1_precision()
+    self.run_p3_error_vs_rpm()
+    self.run_p5_follow_error()
+    self.run_s2_acceleration()
+    return self._last_results
+
+
+def _run_full(self) -> SuiteResult:
+    """v0.3 alias for run_mvp(). Reserved for v0.4+ with extra tests."""
+    return self.run_mvp()
+
+
+def _update_profile(self) -> None:
+    """Write last_results into motor.profile.characterization. Does NOT save.
+
+    Currently writes:
+      - precision.sigma_deg, precision.peak_deg  <- P1Result
+      - speed.max_measured_rpm                   <- S2Result
+    Other fields (P3 RMS, P5 follow error) are reported but not persisted in
+    the profile schema — they're informational. last_calibrated is set
+    separately by motor.calibrate(), not here.
+    """
+    char = self._motor.profile.characterization
+    if self._last_results.p1 is not None:
+        char.precision.sigma_deg = self._last_results.p1.sigma_deg
+        char.precision.peak_deg = self._last_results.p1.peak_deg
+    if self._last_results.s2 is not None:
+        char.speed.max_measured_rpm = self._last_results.s2.max_observed_rpm
+
+
+CharacterizationSuite.run_mvp = _run_mvp
+CharacterizationSuite.run_full = _run_full
+CharacterizationSuite.update_profile = _update_profile
