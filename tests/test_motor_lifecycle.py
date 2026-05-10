@@ -64,3 +64,45 @@ def test_model_property_reads_from_profile(base_profile, mock_raw):
     base_profile.driver.model = "servo42d"
     m = Motor(base_profile, raw=mock_raw)
     assert m.model == "servo42d"
+
+
+def test_attach_opens_internally_owned_raw_driver(monkeypatch, tmp_path):
+    """Regression: Motor.from_profile + attach() must open the serial transport.
+    Pre-fix bug: RawDriver was constructed but open() never called, so the
+    first transact failed with 'serial not open'."""
+    import textwrap
+    from unittest.mock import MagicMock
+    from mks_servo.motor import Motor
+
+    fake_serial_cls = MagicMock()
+    fake_serial = MagicMock()
+    fake_serial.read.return_value = b"\xfb\x01\x82\x01\x7f"  # head + addr + code + data + chk
+    fake_serial_cls.return_value = fake_serial
+    monkeypatch.setattr("mks_servo.raw.serial.Serial", fake_serial_cls)
+
+    p = tmp_path / "wrist.yaml"
+    p.write_text(textwrap.dedent("""
+        schema_version: 1
+        id: wrist
+        driver:
+          model: servo42d
+          slave_addr: 1
+        transport:
+          port: /dev/ttyUSB0
+          baud: 38400
+          timeout_s: 1.0
+    """).lstrip())
+
+    # Patch transact to simulate driver replies (bypass real frame parsing)
+    monkeypatch.setattr(
+        "mks_servo.raw.transact",
+        lambda *a, **kw: (1, kw.get("code", a[2] if len(a) > 2 else 0), b"\x01"),
+    )
+
+    m = Motor.from_profile(str(p))
+    m.attach()
+    # If attach() forgot to open the transport, fake_serial_cls would not have
+    # been called and the first transact would have failed.
+    assert fake_serial_cls.called
+    assert m._attached is True
+    m.detach()

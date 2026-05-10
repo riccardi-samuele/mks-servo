@@ -160,6 +160,8 @@ class Motor:
                 addr=self.profile.driver.slave_addr,
                 timeout=tr.timeout_s,
             )
+            # Open the serial transport: RawDriver doesn't auto-open in __init__.
+            self._raw.open()
         self._apply_profile_config()
         self._attached = True
 
