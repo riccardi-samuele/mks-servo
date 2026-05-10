@@ -2,6 +2,37 @@
 
 All notable changes to mks-servo are documented here.
 
+## [0.3.0] — 2026-05-10 (Level-2 namespaces + CharacterizationSuite)
+
+### Added
+- `motor.advanced` namespace: `set_baud`, `set_slave_addr`,
+  `set_respond_active`, `save_speed_mode_state`. Driver-flash-modifying
+  ops grouped here for discoverability.
+- `motor.diagnostics` namespace: `protection_latched`, `release_protection`,
+  `pulses_received`, `status_text`. Read-only health + protection clears.
+- `CharacterizationSuite(motor)` — programmatic empirical tests.
+  `run_mvp()` runs P1/P3/P5/S2 and returns a typed `SuiteResult`.
+  `update_profile()` writes the precision sigma/peak and the max observed
+  RPM into `profile.characterization`.
+- CLI `mks-servo characterize <profile> [--suite=mvp|full]
+  [--update-profile] [--save] [--port X]`.
+- `DRIVER_REGISTRY` + `make_raw_driver(model, **kwargs)` factory in `raw.py`
+  — extensibility hook so future SERVO57D support is a registry entry.
+- `examples/characterize_motor.py`.
+- `docs/characterization.md` — usage reference for the suite.
+
+### Changed
+- `Motor.attach()` and `MotorBus.add()`/`scan()` now go through
+  `make_raw_driver(model, ...)` instead of constructing `RawDriver`
+  directly. Functionally identical for v0.3 users; opens the door to
+  per-model raw classes in v0.4+.
+
+### Out of scope (deferred)
+- `motor.homing.*` and `motor.io.*` namespaces (v0.4).
+- Sphinx + readthedocs (v1.0).
+- Real SERVO57D driver implementation (registry hook only in v0.3).
+- Velocity mode on `Motor` (use `motor.raw.move_speed` for now).
+
 ## [0.2.0] — 2026-05-10 (Multi-motor + raw promoted)
 
 ### Added
