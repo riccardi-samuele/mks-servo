@@ -2,6 +2,7 @@
 profile.characterization."""
 from __future__ import annotations
 
+import time as _time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -140,3 +141,90 @@ def _run_p3_error_vs_rpm(self, *,
 
 CharacterizationSuite.run_p1_precision = _run_p1_precision
 CharacterizationSuite.run_p3_error_vs_rpm = _run_p3_error_vs_rpm
+
+
+def _run_p5_follow_error(self, *,
+                         rpm: int = 60,
+                         duration_s: float = 2.0,
+                         sweep_deg: float = 360.0,
+                         sample_interval_s: float = 0.05) -> P5Result:
+    """Move at constant RPM and sample motor.error() throughout the sweep."""
+    # Setup move: get to start position.
+    self._motor.write(0.0, rpm=rpm, blocking=True)
+    # Start the sweep non-blocking; sample errors during it.
+    self._motor.write(sweep_deg, rpm=rpm, blocking=False)
+    samples: list[float] = []
+    t0 = _time.monotonic()
+    while _time.monotonic() - t0 < duration_s:
+        try:
+            samples.append(abs(self._motor.error()))
+        except Exception:
+            break
+        _time.sleep(sample_interval_s)
+    try:
+        self._motor.wait_until_idle()
+    except Exception:
+        pass
+    max_err = max(samples) if samples else 0.0
+    rms_err = _rms(samples)
+    res = P5Result(rpm=rpm, duration_s=duration_s,
+                   max_follow_err_deg=max_err,
+                   rms_follow_err_deg=rms_err)
+    self._last_results.p5 = res
+    return res
+
+
+def _run_s2_acceleration(self, *,
+                         target_rpm: int = 2000,
+                         accs: Optional[list[int]] = None,
+                         samples_per_acc: int = 50,
+                         sample_interval_s: float = 0.01,
+                         cool_s: float = 1.0) -> S2Result:
+    """For each acc value, command move_speed to target_rpm and time to plateau.
+
+    Uses motor.raw.move_speed (Level 3) — Motor doesn't expose velocity mode
+    directly. Returns the time-to-target (ms) for each acc and the maximum
+    observed RPM across the runs.
+    """
+    if accs is None:
+        accs = [1, 50, 100, 200, 255]
+    times: list[Optional[float]] = []
+    max_rpm = 0
+    for acc in accs:
+        # Reset to zero rpm
+        try:
+            self._motor.raw.move_speed(rpm=0, acc=255, direction=0)
+        except Exception:
+            pass
+        _time.sleep(cool_s)
+        # Start ramp
+        try:
+            self._motor.raw.move_speed(rpm=int(target_rpm),
+                                       acc=int(acc), direction=0)
+        except Exception:
+            times.append(None)
+            continue
+        t0 = _time.monotonic()
+        reached: Optional[float] = None
+        for _ in range(samples_per_acc):
+            v = abs(self._motor.speed_rpm)
+            if v > max_rpm:
+                max_rpm = v
+            if v >= target_rpm * 0.95:
+                reached = (_time.monotonic() - t0) * 1000.0
+                break
+            _time.sleep(sample_interval_s)
+        times.append(reached)
+        try:
+            self._motor.raw.move_speed(rpm=0, acc=255, direction=0)
+        except Exception:
+            pass
+    res = S2Result(target_rpm=target_rpm, accs=list(accs),
+                   time_to_target_ms=times,
+                   max_observed_rpm=int(max_rpm))
+    self._last_results.s2 = res
+    return res
+
+
+CharacterizationSuite.run_p5_follow_error = _run_p5_follow_error
+CharacterizationSuite.run_s2_acceleration = _run_s2_acceleration
