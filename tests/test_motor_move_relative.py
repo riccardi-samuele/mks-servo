@@ -73,9 +73,13 @@ def test_wait_until_idle_passes_timeout(base_profile, mock_raw):
 
 
 def test_wait_until_idle_default_no_timeout(base_profile, mock_raw):
+    """When called without timeout, Motor must NOT pass timeout=None (which
+    would crash RawDriver.wait_until_idle's deadline arithmetic). It calls
+    raw.wait_until_idle() with no kwargs so the raw driver applies its own
+    default."""
     m = Motor(base_profile, raw=mock_raw); m.attach()
     m.wait_until_idle()
-    mock_raw.wait_until_idle.assert_called_with(timeout=None)
+    mock_raw.wait_until_idle.assert_called_with()
 
 
 def test_methods_before_attach_raise(base_profile, mock_raw):

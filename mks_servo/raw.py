@@ -299,16 +299,59 @@ class RawDriver:
         payload = self._txn(OpCode.MOVE_ABS_AXIS, data, expect_payload_len=1)
         return payload == b"\x01"
 
-    def wait_until_idle(self, timeout: float = 10.0, poll_interval: float = 0.05) -> None:
-        """Poll cmd 0xF1 until status returns to STOPPED.
-        Raises MotorFault if timeout is exceeded.
+    def wait_until_idle(self, timeout: float = 10.0, poll_interval: float = 0.2,
+                        idle_reads: int = 3, min_warmup_s: float = 0.5) -> None:
+        """Block until the motor is idle, or raise MotorFault on timeout.
+
+        On the SERVO42D firmware V1.0.6 the status register (cmd 0xF1) does
+        NOT reliably return to `STOPPED` after a closed-loop move — it often
+        latches in `SPEED_DOWN` indefinitely while the motor is physically
+        still. Polling status alone deadlocks. The reliable signal is
+        `read_speed_rpm() == 0` for several consecutive reads.
+
+        Considered idle if ANY of:
+          - status == STOPPED, OR
+          - motion was observed (speed_rpm != 0 at least once) AND speed has
+            been 0 for `idle_reads` consecutive reads, OR
+          - more than `min_warmup_s` elapsed AND speed has been 0 for
+            `idle_reads` consecutive reads (handles the "trivial move that
+            never gets above 0 RPM in our polling window" case).
+
+        The default poll_interval is 0.2s (not 0.05s) because the driver is
+        less responsive during active motion; aggressive polling causes
+        truncated frames and CommTimeouts. A single CommTimeout per loop
+        iteration is also tolerated.
         """
-        from .exceptions import MotorFault
-        deadline = time.monotonic() + timeout
+        from .exceptions import MotorFault, CommTimeout
+        start = time.monotonic()
+        deadline = start + timeout
+        seen_motion = False
+        zero_streak = 0
         while True:
-            st = self.read_motor_status()
-            if st == MotorStatus.STOPPED:
-                return
+            try:
+                st = self.read_motor_status()
+                if st == MotorStatus.STOPPED:
+                    return
+                speed = self.read_speed_rpm()
+            except CommTimeout:
+                # Driver was busy responding to motion. Tolerate occasional
+                # truncated frames; retry on next iteration.
+                if time.monotonic() >= deadline:
+                    raise MotorFault(
+                        f"wait_until_idle: communication unstable for {timeout}s"
+                    )
+                if poll_interval > 0:
+                    time.sleep(poll_interval)
+                continue
+
+            elapsed = time.monotonic() - start
+            if speed != 0:
+                seen_motion = True
+                zero_streak = 0
+            elif seen_motion or elapsed >= min_warmup_s:
+                zero_streak += 1
+                if zero_streak >= idle_reads:
+                    return
             if time.monotonic() >= deadline:
                 raise MotorFault(f"motor still {st.name} after {timeout}s")
             if poll_interval > 0:

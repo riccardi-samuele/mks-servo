@@ -24,7 +24,9 @@ _logger = logging.getLogger("mks_servo.motor")
 
 from datetime import datetime as _dt, timezone as _tz
 from mks_servo.constants import WorkMode
-from mks_servo.exceptions import CalibrationFailed, LimitExceeded, MotorNotAttached
+from mks_servo.exceptions import (
+    CalibrationFailed, CommTimeout, LimitExceeded, MotorNotAttached,
+)
 from mks_servo.profile import Profile
 from mks_servo.raw import MotorStatus, RawDriver
 
@@ -163,6 +165,9 @@ class Motor:
             # Open the serial transport: RawDriver doesn't auto-open in __init__.
             self._raw.open()
         self._apply_profile_config()
+        # Energise the motor by default (Servo-style "attach" semantics).
+        # The user can disable explicitly via motor.enable(False) / disable().
+        self._raw.enable(True)
         self._attached = True
 
     def detach(self) -> None:
@@ -246,7 +251,12 @@ class Motor:
         )
         self._raw.move_absolute_axis(counts, eff_rpm, eff_acc)
         if blocking:
-            self._raw.wait_until_idle(timeout=timeout)
+            # RawDriver.wait_until_idle requires a numeric timeout; only pass
+            # ours when the caller specified one, otherwise use raw's default.
+            if timeout is None:
+                self._raw.wait_until_idle()
+            else:
+                self._raw.wait_until_idle(timeout=timeout)
 
     def read(self) -> float:
         """Current absolute angle in output-axis degrees (gear_ratio + origin applied)."""
@@ -316,7 +326,18 @@ class Motor:
             self.profile.origin.encoder_offset_counts = counts
             self.profile.origin.set_in_firmware = False
         else:
-            self._raw.set_zero_point()
+            # The MKS firmware is occasionally unresponsive immediately after
+            # a motion completes (the wait_until_idle return doesn't guarantee
+            # the driver is ready for the next flash-write command). A short
+            # settle pause + a single retry on CommTimeout makes set_origin
+            # robust in practice without requiring callers to add their own
+            # sleeps.
+            _time.sleep(0.2)
+            try:
+                self._raw.set_zero_point()
+            except CommTimeout:
+                _time.sleep(0.5)
+                self._raw.set_zero_point()
             self.profile.origin.set_in_firmware = True
             self.profile.origin.encoder_offset_counts = 0
 
@@ -344,7 +365,10 @@ class Motor:
     def wait_until_idle(self, timeout: Optional[float] = None) -> None:
         """Block until the motor reports it has stopped, or raise on timeout."""
         self._require_attached()
-        self._raw.wait_until_idle(timeout=timeout)
+        if timeout is None:
+            self._raw.wait_until_idle()
+        else:
+            self._raw.wait_until_idle(timeout=timeout)
 
     # ─── Level 1 properties ───────────────────────────────────────────
     @property
