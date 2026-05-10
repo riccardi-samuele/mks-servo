@@ -124,6 +124,8 @@ class Motor:
         self._speed_limit_rpm: Optional[int] = profile.limits.speed.max_rpm_safe
         self._auto_save = auto_save
         self._auto_save_warned = False
+        self._advanced_ns = None
+        self._diagnostics_ns = None
 
     # ─── Constructors ──────────────────────────────────────────────────
     @classmethod
@@ -585,3 +587,20 @@ class Motor:
         """
         self._require_attached()
         self.raw.restore_defaults()
+
+    # ─── Level 2 namespaces ──────────────────────────────────────────
+    @property
+    def advanced(self):
+        """Level-2 advanced namespace: driver-flash settings, baud/addr changes."""
+        if self._advanced_ns is None:
+            from mks_servo.namespaces import AdvancedNamespace
+            self._advanced_ns = AdvancedNamespace(self)
+        return self._advanced_ns
+
+    @property
+    def diagnostics(self):
+        """Level-2 diagnostics namespace: protection, pulses received, status."""
+        if self._diagnostics_ns is None:
+            from mks_servo.namespaces import DiagnosticsNamespace
+            self._diagnostics_ns = DiagnosticsNamespace(self)
+        return self._diagnostics_ns
