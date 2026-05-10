@@ -71,3 +71,72 @@ class CharacterizationSuite:
         self._last_results = SuiteResult()
 
     # Test methods are added in Tasks 5-7.
+
+
+import math
+
+
+def _stats(samples: list[float], target: float) -> tuple[float, float, float]:
+    """Return (mean, sigma, peak_abs_dev_from_target)."""
+    n = len(samples)
+    if n == 0:
+        return 0.0, 0.0, 0.0
+    mean = sum(samples) / n
+    var = sum((s - mean) ** 2 for s in samples) / n
+    sigma = math.sqrt(var)
+    peak = max(abs(s - target) for s in samples)
+    return mean, sigma, peak
+
+
+def _rms(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return math.sqrt(sum(v * v for v in values) / len(values))
+
+
+# Methods bound to CharacterizationSuite below:
+
+def _run_p1_precision(self, *,
+                      target_deg: float = 0.0,
+                      iterations: int = 5,
+                      rpm: int = 300) -> P1Result:
+    """Move to target N times and measure the read-back spread.
+
+    Returns a P1Result with samples, mean, sigma, peak.
+    """
+    samples: list[float] = []
+    for _ in range(iterations):
+        self._motor.write(target_deg, rpm=rpm)
+        samples.append(self._motor.read())
+    mean, sigma, peak = _stats(samples, target_deg)
+    res = P1Result(
+        target_deg=target_deg, iterations=iterations,
+        samples_deg=samples, mean_deg=mean,
+        sigma_deg=sigma, peak_deg=peak,
+    )
+    self._last_results.p1 = res
+    return res
+
+
+def _run_p3_error_vs_rpm(self, *,
+                         rpms: Optional[list[int]] = None,
+                         samples_per_rpm: int = 5,
+                         target_deg: float = 90.0) -> P3Result:
+    """For each RPM, do `samples_per_rpm` writes to `target_deg` and measure
+    the RMS of (read - target)."""
+    if rpms is None:
+        rpms = [50, 100, 300, 500, 1000]
+    rms_per_rpm: list[float] = []
+    for rpm in rpms:
+        errs: list[float] = []
+        for _ in range(samples_per_rpm):
+            self._motor.write(target_deg, rpm=rpm)
+            errs.append(self._motor.read() - target_deg)
+        rms_per_rpm.append(_rms(errs))
+    res = P3Result(rpm_samples=list(rpms), rms_error_deg=rms_per_rpm)
+    self._last_results.p3 = res
+    return res
+
+
+CharacterizationSuite.run_p1_precision = _run_p1_precision
+CharacterizationSuite.run_p3_error_vs_rpm = _run_p3_error_vs_rpm
