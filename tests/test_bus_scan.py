@@ -13,11 +13,11 @@ def _config_dict(addr=1):
 
 
 def test_scan_returns_entries_for_responsive_addrs():
-    """Patch RawDriver inside bus.scan so each address returns config or timeouts."""
+    """Patch make_raw_driver inside bus.scan so each address returns config or timeouts."""
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
-                def make_raw(addr, transport, timeout=None):
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
+                def make_raw(model, *, addr, transport, timeout=None):
                     inst = MagicMock()
                     inst.timeout = timeout
                     if addr in (1, 3):
@@ -25,8 +25,7 @@ def test_scan_returns_entries_for_responsive_addrs():
                     else:
                         inst.read_all_config.side_effect = CommTimeout("no response")
                     return inst
-                fake_raw_cls.side_effect = lambda addr, transport, timeout=None: \
-                    make_raw(addr, transport, timeout=timeout)
+                fake_factory.side_effect = make_raw
 
                 entries = bus.scan(range(1, 4))
                 addrs = [e.addr for e in entries]
@@ -39,14 +38,13 @@ def test_scan_default_range_is_1_to_16():
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
             calls = []
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
-                def make_raw(addr, transport, timeout=None):
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
+                def make_raw(model, *, addr, transport, timeout=None):
                     calls.append(addr)
                     inst = MagicMock()
                     inst.read_all_config.side_effect = CommTimeout("no")
                     return inst
-                fake_raw_cls.side_effect = lambda addr, transport, timeout=None: \
-                    make_raw(addr, transport, timeout=timeout)
+                fake_factory.side_effect = make_raw
                 bus.scan()
             assert calls == list(range(1, 17))
 
@@ -54,10 +52,10 @@ def test_scan_default_range_is_1_to_16():
 def test_scan_create_profiles_writes_yaml(tmp_path):
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
                 inst = MagicMock()
                 inst.read_all_config.return_value = _config_dict(addr=1)
-                fake_raw_cls.return_value = inst
+                fake_factory.return_value = inst
                 entries = bus.scan(range(1, 2),
                                    create_profiles=True, output_dir=tmp_path)
             assert (tmp_path / "motor_1.yaml").exists()
@@ -68,10 +66,10 @@ def test_scan_create_profiles_skips_existing_without_force(tmp_path):
     (tmp_path / "motor_1.yaml").write_text("# existing\n")
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
                 inst = MagicMock()
                 inst.read_all_config.return_value = _config_dict(addr=1)
-                fake_raw_cls.return_value = inst
+                fake_factory.return_value = inst
                 entries = bus.scan(range(1, 2),
                                    create_profiles=True, output_dir=tmp_path)
             # Existing file preserved
@@ -88,10 +86,10 @@ def test_scan_create_profiles_force_overwrites(tmp_path):
     (tmp_path / "motor_1.yaml").write_text("# existing\n")
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
                 inst = MagicMock()
                 inst.read_all_config.return_value = _config_dict(addr=1)
-                fake_raw_cls.return_value = inst
+                fake_factory.return_value = inst
                 entries = bus.scan(range(1, 2),
                                    create_profiles=True, output_dir=tmp_path,
                                    force=True)
@@ -104,13 +102,12 @@ def test_scan_passes_timeout_to_raw():
     with patch("mks_servo.transport.serial.Serial"):
         with MotorBus("/dev/foo") as bus:
             captured_timeouts = []
-            with patch("mks_servo.bus.RawDriver") as fake_raw_cls:
-                def make_raw(addr, transport, timeout=None):
+            with patch("mks_servo.bus.make_raw_driver") as fake_factory:
+                def make_raw(model, *, addr, transport, timeout=None):
                     captured_timeouts.append(timeout)
                     inst = MagicMock()
                     inst.read_all_config.side_effect = CommTimeout("no")
                     return inst
-                fake_raw_cls.side_effect = lambda addr, transport, timeout=None: \
-                    make_raw(addr, transport, timeout=timeout)
+                fake_factory.side_effect = make_raw
                 bus.scan(range(1, 3), timeout=0.5)
             assert all(t == 0.5 for t in captured_timeouts)

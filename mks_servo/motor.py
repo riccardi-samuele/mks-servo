@@ -26,7 +26,7 @@ from datetime import datetime as _dt, timezone as _tz
 from mks_servo.constants import WorkMode
 from mks_servo.exceptions import CalibrationFailed, LimitExceeded, MotorNotAttached
 from mks_servo.profile import Profile
-from mks_servo.raw import MotorStatus, RawDriver
+from mks_servo.raw import MotorStatus, RawDriver, make_raw_driver
 
 ENCODER_COUNTS_PER_REV = 0x4000  # 16384
 
@@ -161,7 +161,8 @@ class Motor:
                     "no transport.port: set it in the profile or pass `port=` "
                     "to Motor.from_profile()"
                 )
-            self.raw = RawDriver(
+            self.raw = make_raw_driver(
+                self.profile.driver.model,
                 port=tr.port, baud=tr.baud,
                 addr=self.profile.driver.slave_addr,
                 timeout=tr.timeout_s,
