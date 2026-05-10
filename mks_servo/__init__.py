@@ -13,6 +13,7 @@ from mks_servo.transport import SharedTransport
 from mks_servo.profile import Profile
 from mks_servo.motor import Motor
 from mks_servo.bus import MotorBus, BusEntry
+from mks_servo.namespaces import AdvancedNamespace, DiagnosticsNamespace
 
 __version__ = "0.1.0"
 
@@ -23,5 +24,6 @@ __all__ = [
     "MKSError", "CommTimeout", "ChecksumError", "ProtocolError",
     "MotorFault", "CalibrationFailed",
     "ProfileError", "LimitExceeded", "MotorNotAttached",
+    "AdvancedNamespace", "DiagnosticsNamespace",
     "__version__",
 ]
