@@ -339,7 +339,8 @@ def phase_d() -> None:
                     _ = m.diagnostics.pulses_received()
                     _ = m.diagnostics.protection_latched()
                 elif level == "L3":
-                    _ = m.raw.read_encoder_value()
+                    _ = m.raw.read_encoder()
+                    _ = m.raw.read_angle_degrees()
                     _ = m.raw.read_motor_status()
                 counts[level] += 1
             except Exception as e:
