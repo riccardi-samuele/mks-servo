@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest a new capability or an API change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the situation you're in and why the current library makes it
+        harder than it should be. Don't lead with a solution — lead with the
+        pain.
+      placeholder: |
+        I want to characterize 8 motors back-to-back without writing a loop
+        that re-opens the serial port every time...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        Optional sketch of the API or behavior you'd like. Don't worry about
+        implementation — the design conversation happens after.
+      render: python
+      placeholder: |
+        with MotorBus("/dev/ttyUSB0") as bus:
+            for addr in range(1, 9):
+                m = bus.add(profile_at(addr))
+                CharacterizationSuite(m).run_mvp(...)
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: API level affected
+      multiple: true
+      options:
+        - "Level 0 (Motor.attach/detach/write/read)"
+        - "Level 1 (work_current_ma, calibrate, move_relative, …)"
+        - "Level 2 (advanced / diagnostics namespaces)"
+        - "Level 3 (raw opcode wrapper)"
+        - "CLI"
+        - "Profiles / YAML"
+        - "Other (please describe)"
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What you tried, what worked around it, what other libraries do.

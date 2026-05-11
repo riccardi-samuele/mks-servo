@@ -1,0 +1,86 @@
+name: Bug report
+description: Something is not working the way the docs / README say it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. The more concrete you can
+        be about what you ran and what happened, the faster this gets fixed.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the unexpected behavior.
+      placeholder: |
+        I called motor.calibrate() and it raised CalibrationFailed after 30s
+        even though the motor was unloaded.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The shortest snippet that triggers the bug. If it requires hardware,
+        say so and describe the rig.
+      render: python
+      placeholder: |
+        from mks_servo import Motor, MotorProfile
+        m = Motor(MotorProfile.from_file("..."))
+        m.attach()
+        m.calibrate()
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback / output
+      description: Full traceback, or the last ~20 lines of output.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: mks-servo version
+      description: Output of `python -c "import mks_servo; print(mks_servo.__version__)"`
+      placeholder: "0.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "3.12.1"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "Ubuntu 24.04 / macOS 14 / Windows 11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Did the bug involve real hardware?
+      options:
+        - "No — reproducible with mocks"
+        - "Yes — MKS SERVO42D + NEMA17"
+        - "Yes — other driver / motor (please describe in 'What happened')"
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Driver firmware version (if hardware)
+      description: Read from the driver's OLED menu or via diagnostics. "n/a" if no hardware involved.
+      placeholder: "V1.0.6"
