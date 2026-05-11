@@ -2,6 +2,28 @@
 
 All notable changes to mks-servo are documented here.
 
+## [Unreleased]
+
+### Fixed (backported from v0.1.1, HIL-validated on real SERVO42D hardware)
+- `Motor.attach()` now opens the serial transport for an internally-owned
+  `RawDriver` (it does not auto-open in `__init__`) — the first command after
+  attach previously failed with "transport not open".
+- `Motor.attach()` now energises the motor (Servo-style semantics); `detach()`
+  still disables it. Without this, `motor.write()` commands were accepted by
+  the driver but the motor stayed physically inert.
+- `Motor.write(timeout=None)` / `Motor.wait_until_idle()` no longer forward
+  `timeout=None` into `RawDriver.wait_until_idle`, which crashed its deadline
+  arithmetic.
+- `RawDriver.wait_until_idle` tolerates the SERVO42D firmware V1.0.6 quirk
+  where status (cmd 0xF1) latches in `SPEED_DOWN` indefinitely after a
+  closed-loop move: it now also accepts `speed_rpm == 0` for N consecutive
+  reads as the idle signal, requires observed motion or `min_warmup_s` before
+  counting zero-streaks (so a no-op move doesn't return prematurely), defaults
+  to a 0.2s poll interval, and tolerates one `CommTimeout` per iteration
+  (truncated frames during motion).
+- `Motor.set_origin(soft=False)` adds a 0.2s settle pause + one retry on
+  `CommTimeout` (cmd 0x92 occasionally times out right after a motion).
+
 ## [0.3.0] — 2026-05-10 (Level-2 namespaces + CharacterizationSuite)
 
 ### Added
