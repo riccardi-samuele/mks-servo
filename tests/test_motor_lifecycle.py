@@ -64,3 +64,29 @@ def test_model_property_reads_from_profile(base_profile, mock_raw):
     base_profile.driver.model = "servo42d"
     m = Motor(base_profile, raw=mock_raw)
     assert m.model == "servo42d"
+
+
+def test_attach_auto_enables_motor(base_profile, mock_raw):
+    """HIL regression: attach() must energise the motor (Servo-style), else
+    motor.write() commands are accepted by the driver but the motor stays
+    inert. detach() still disables."""
+    m = Motor(base_profile, raw=mock_raw)
+    m.attach()
+    mock_raw.enable.assert_called_with(True)
+    m.detach()
+    mock_raw.enable.assert_called_with(False)
+
+
+def test_attach_opens_internally_owned_raw_driver(base_profile, monkeypatch):
+    """HIL regression: when Motor owns the RawDriver (created from the
+    profile transport), attach() must call .open() on it — RawDriver does not
+    auto-open in __init__, so the first transact would otherwise fail."""
+    from unittest.mock import MagicMock
+    fake_raw = MagicMock()
+    fake_raw_cls = MagicMock(return_value=fake_raw)
+    monkeypatch.setattr("mks_servo.motor.RawDriver", fake_raw_cls)
+    base_profile.transport.port = "/dev/ttyUSB0"
+    m = Motor(base_profile)  # no raw= → Motor builds + owns one
+    m.attach()
+    assert fake_raw_cls.called
+    fake_raw.open.assert_called_once()

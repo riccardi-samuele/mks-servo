@@ -112,18 +112,44 @@ def test_move_relative_axis_negative(fake_serial):
 
 
 def test_wait_until_idle_returns_when_stopped(fake_serial):
+    """When status reports STOPPED at any poll, return immediately
+    without consulting speed_rpm fallback."""
     fake_serial.read.side_effect = [
-        _resp(1, 0xF1, b"\x04"),
-        _resp(1, 0xF1, b"\x04"),
-        _resp(1, 0xF1, b"\x01"),
+        _resp(1, 0xF1, b"\x04"),       # status: FULL_SPEED, not STOPPED
+        _resp(1, 0x32, b"\x01\x00"),   # speed: 256 RPM (non-zero, no streak)
+        _resp(1, 0xF1, b"\x04"),       # status: FULL_SPEED again
+        _resp(1, 0x32, b"\x00\x10"),   # speed: 16 RPM (still non-zero)
+        _resp(1, 0xF1, b"\x01"),       # status: STOPPED → return
     ]
     with RawDriver("/dev/ttyUSB0", 38400, 1) as m:
         m.wait_until_idle(timeout=2.0, poll_interval=0.0)
 
 
+def test_wait_until_idle_returns_when_speed_zero_streak(fake_serial):
+    """When status latches in SPEED_DOWN (firmware quirk) but speed is 0
+    for `idle_reads` consecutive reads, the call must return.
+    Use min_warmup_s=0 so the test doesn't have to wait on wall-clock."""
+    fake_serial.read.side_effect = [
+        _resp(1, 0xF1, b"\x03"),       # status: SPEED_DOWN (latched)
+        _resp(1, 0x32, b"\x00\x00"),   # speed: 0 (1)
+        _resp(1, 0xF1, b"\x03"),       # status: SPEED_DOWN
+        _resp(1, 0x32, b"\x00\x00"),   # speed: 0 (2)
+        _resp(1, 0xF1, b"\x03"),       # status: SPEED_DOWN
+        _resp(1, 0x32, b"\x00\x00"),   # speed: 0 (3) → idle_reads reached
+    ]
+    with RawDriver("/dev/ttyUSB0", 38400, 1) as m:
+        m.wait_until_idle(timeout=2.0, poll_interval=0.0, idle_reads=3,
+                          min_warmup_s=0.0)
+
+
 def test_wait_until_idle_raises_on_timeout(fake_serial):
-    fake_serial.read.return_value = _resp(1, 0xF1, b"\x04")
+    """Status latched at non-STOPPED AND speed never zero → timeout."""
+    from itertools import cycle
+    fake_serial.read.side_effect = cycle([
+        _resp(1, 0xF1, b"\x04"),       # status: FULL_SPEED
+        _resp(1, 0x32, b"\x01\x00"),   # speed: 256 RPM
+    ])
     from mks_servo.exceptions import MKSError
     with RawDriver("/dev/ttyUSB0", 38400, 1) as m:
         with pytest.raises(MKSError):
-            m.wait_until_idle(timeout=0.1, poll_interval=0.0)
+            m.wait_until_idle(timeout=0.05, poll_interval=0.0)
