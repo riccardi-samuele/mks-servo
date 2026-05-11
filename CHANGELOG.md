@@ -2,7 +2,23 @@
 
 All notable changes to mks-servo are documented here.
 
-## [Unreleased]
+## [0.2.1] — 2026-05-11 (Multi-motor layer HIL-validated)
+
+### Added
+- `tests/hil/test_bus_smoke.py`, `test_bus_lifecycle.py`, `test_bus_scan.py`,
+  `test_bus_concurrent.py` — hardware-in-the-loop coverage of `MotorBus` /
+  `SharedTransport` / externally-owned `RawDriver` on a real NEMA17 + SERVO42D
+  + 12V rig. `test_bus_two_motors.py` (gated on `$MKS_HIL_SECOND_ADDR`) adds a
+  two-motors-on-one-bus concurrency test.
+- `tests/hil/conftest.py`: `hil_serial_cfg` and `hil_bus` fixtures.
+
+### Notes
+- The v0.2.0 multi-motor layer passed the new HIL suite on the first run with
+  **no production code changes** — the `threading.Lock` in `SharedTransport`
+  serialises concurrent bus traffic correctly on real hardware (concurrent
+  reads from two `RawDriver` handles on one transport produced no corrupt
+  frames). `MotorBus.add()`/`remove()`/`scan()`/context-manager teardown all
+  behave on hardware.
 
 ### Fixed (backported from v0.1.1, HIL-validated on real SERVO42D hardware)
 - `Motor.attach()` now opens the serial transport for an internally-owned
