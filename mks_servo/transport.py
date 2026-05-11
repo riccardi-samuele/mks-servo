@@ -22,13 +22,26 @@ def transact(
     """Send a frame and read back the matching uplink frame.
 
     Returns a tuple of (addr, code, payload).
-    Raises CommTimeout if no full frame arrives within timeout.
+
+    Raises CommTimeout if:
+      - no full frame arrives within ``timeout``, OR
+      - the underlying serial device raises an OS-level / pyserial error
+        (e.g. the USB-RS485 adapter was disconnected, the kernel dropped the
+        tty, or another process opened the port exclusively). Such errors
+        are wrapped so callers can handle all "transaction did not complete"
+        situations with a single ``except CommTimeout``.
     """
     request = build_frame(addr, code, data)
-    ser.reset_input_buffer() if hasattr(ser, "reset_input_buffer") else None
-    ser.write(request)
-    if hasattr(ser, "flush"):
-        ser.flush()
+    try:
+        if hasattr(ser, "reset_input_buffer"):
+            ser.reset_input_buffer()
+        ser.write(request)
+        if hasattr(ser, "flush"):
+            ser.flush()
+    except (OSError, serial.SerialException) as exc:
+        raise CommTimeout(
+            f"serial I/O failed during write: {type(exc).__name__}: {exc}"
+        ) from exc
 
     if expect_payload_len is None:
         # Best effort: read whatever is available; the caller knows the layout.
@@ -44,8 +57,13 @@ def transact(
             raise CommTimeout(
                 f"got {len(buf)}/{expected_total} bytes within {timeout}s"
             )
-        ser.timeout = remaining
-        chunk = ser.read(expected_total - len(buf))
+        try:
+            ser.timeout = remaining
+            chunk = ser.read(expected_total - len(buf))
+        except (OSError, serial.SerialException) as exc:
+            raise CommTimeout(
+                f"serial I/O failed during read: {type(exc).__name__}: {exc}"
+            ) from exc
         if not chunk:
             raise CommTimeout(
                 f"got {len(buf)}/{expected_total} bytes within {timeout}s"

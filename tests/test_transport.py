@@ -24,6 +24,44 @@ def test_transact_raises_commtimeout_on_short_read():
                  expect_payload_len=4, timeout=0.01)
 
 
+def test_transact_wraps_oserror_on_read_as_commtimeout():
+    """Regression: when the USB-RS485 adapter drops off the bus mid-soak,
+    pyserial's read() raises OSError(EIO=5). The library must convert it to
+    CommTimeout so `except CommTimeout` catches all "did not complete"
+    failures, not just timeouts."""
+    ser = MagicMock()
+    ser.read.side_effect = OSError(5, "Input/output error")
+    with pytest.raises(CommTimeout) as excinfo:
+        transact(ser, addr=1, code=0x30, data=b"",
+                 expect_payload_len=4, timeout=1.0)
+    # The wrapped exception is preserved on the `__cause__` chain.
+    assert isinstance(excinfo.value.__cause__, OSError)
+    assert "Input/output error" in str(excinfo.value)
+
+
+def test_transact_wraps_oserror_on_write_as_commtimeout():
+    """Same as the read case but for the write side: if the device is gone
+    by the time we go to send, OSError must still surface as CommTimeout."""
+    ser = MagicMock()
+    ser.write.side_effect = OSError(5, "Input/output error")
+    with pytest.raises(CommTimeout) as excinfo:
+        transact(ser, addr=1, code=0x30, data=b"",
+                 expect_payload_len=4, timeout=1.0)
+    assert isinstance(excinfo.value.__cause__, OSError)
+
+
+def test_transact_wraps_serial_exception_as_commtimeout():
+    """pyserial's own SerialException — raised e.g. when the device file is
+    deleted under the open handle — must be wrapped the same way."""
+    import serial
+    ser = MagicMock()
+    ser.read.side_effect = serial.SerialException("device reports readiness to read but returned no data")
+    with pytest.raises(CommTimeout) as excinfo:
+        transact(ser, addr=1, code=0x30, data=b"",
+                 expect_payload_len=4, timeout=1.0)
+    assert isinstance(excinfo.value.__cause__, serial.SerialException)
+
+
 from unittest.mock import patch
 from mks_servo.transport import SharedTransport
 
