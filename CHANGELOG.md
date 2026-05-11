@@ -7,6 +7,39 @@ All notable changes to mks-servo are documented here.
 > newest-version-first below; v0.3.1's tree contains the v0.2.1 multi-motor
 > HIL work as well.
 
+## [Unreleased] — heading toward 1.0
+
+### Added
+- Apache 2.0 license + `NOTICE` file; PEP 639 SPDX metadata in
+  `pyproject.toml`; trove classifiers for Python 3.10–3.13.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1),
+  GitHub issue + PR templates, GitHub Actions CI matrix
+  (Python 3.10–3.13 on Ubuntu + 3.13 smoke on macOS / Windows + build job
+  with `twine check`).
+- `scripts/soak_v1.0_prep.py` — synthetic 5-phase soak test (session
+  stress, motion loop, profile round-trip, L1/L2/L3 mix, error recovery).
+  Used to hardware-validate this release; reports under `docs/reports/`.
+
+### Fixed
+- `transport.transact()` now wraps `OSError` and `serial.SerialException`
+  in `CommTimeout` (with the original on `__cause__`). Discovered during
+  the v1.0 soak when the USB-RS485 adapter physically dropped off the
+  bus: the bare `OSError(EIO=5)` was leaking past `except CommTimeout`
+  handlers. Three regression tests added (`test_transport.py`).
+- `mks_servo.__version__` was stale at `"0.1.0"` since v0.2; now mirrors
+  `pyproject.toml`. A guard test (`test_version_matches_pyproject`)
+  prevents this drift in future releases.
+
+### Docs / API freeze pass
+- `AdvancedNamespace.set_baud` / `set_slave_addr` / `save_speed_mode_state`
+  now carry a `.. warning:: Experimental` docstring — they rewrite driver
+  flash and remain intentionally outside the HIL test suite.
+- `CharacterizationSuite` carries a `.. note:: Provisional` — method
+  signatures are stable in 1.x, but default S2 parameters may be retuned
+  and `*Result` dataclasses may grow additive fields.
+- README polished for v1.0: badges, API levels table, License section,
+  Status section.
+
 ## [0.3.1] — 2026-05-11 (Level-2 + CharacterizationSuite HIL-validated)
 
 ### Added
