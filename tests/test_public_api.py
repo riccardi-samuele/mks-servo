@@ -23,3 +23,19 @@ def test_motorbus_exported():
     import mks_servo
     assert hasattr(mks_servo, "MotorBus")
     assert hasattr(mks_servo, "BusEntry")
+
+
+def test_namespaces_exported():
+    import mks_servo
+    assert hasattr(mks_servo, "AdvancedNamespace")
+    assert hasattr(mks_servo, "DiagnosticsNamespace")
+
+
+def test_characterize_exported():
+    import mks_servo
+    assert hasattr(mks_servo, "CharacterizationSuite")
+    assert hasattr(mks_servo, "SuiteResult")
+    assert hasattr(mks_servo, "P1Result")
+    assert hasattr(mks_servo, "P3Result")
+    assert hasattr(mks_servo, "P5Result")
+    assert hasattr(mks_servo, "S2Result")

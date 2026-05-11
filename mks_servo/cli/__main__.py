@@ -37,6 +37,10 @@ from mks_servo.cli.bus_cmds import discover_cmd  # noqa: E402
 bus.add_command(discover_cmd, name="discover")
 
 
+from mks_servo.cli.characterize_cmds import characterize_cmd  # noqa: E402
+cli.add_command(characterize_cmd, name="characterize")
+
+
 def main() -> int:
     return cli(standalone_mode=True)
 

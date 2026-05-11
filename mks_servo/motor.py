@@ -28,7 +28,7 @@ from mks_servo.exceptions import (
     CalibrationFailed, CommTimeout, LimitExceeded, MotorNotAttached,
 )
 from mks_servo.profile import Profile
-from mks_servo.raw import MotorStatus, RawDriver
+from mks_servo.raw import MotorStatus, RawDriver, make_raw_driver
 
 ENCODER_COUNTS_PER_REV = 0x4000  # 16384
 
@@ -126,6 +126,8 @@ class Motor:
         self._speed_limit_rpm: Optional[int] = profile.limits.speed.max_rpm_safe
         self._auto_save = auto_save
         self._auto_save_warned = False
+        self._advanced_ns = None
+        self._diagnostics_ns = None
 
     # ─── Constructors ──────────────────────────────────────────────────
     @classmethod
@@ -161,7 +163,8 @@ class Motor:
                     "no transport.port: set it in the profile or pass `port=` "
                     "to Motor.from_profile()"
                 )
-            self.raw = RawDriver(
+            self.raw = make_raw_driver(
+                self.profile.driver.model,
                 port=tr.port, baud=tr.baud,
                 addr=self.profile.driver.slave_addr,
                 timeout=tr.timeout_s,
@@ -624,3 +627,20 @@ class Motor:
         """
         self._require_attached()
         self.raw.restore_defaults()
+
+    # ─── Level 2 namespaces ──────────────────────────────────────────
+    @property
+    def advanced(self):
+        """Level-2 advanced namespace: driver-flash settings, baud/addr changes."""
+        if self._advanced_ns is None:
+            from mks_servo.namespaces import AdvancedNamespace
+            self._advanced_ns = AdvancedNamespace(self)
+        return self._advanced_ns
+
+    @property
+    def diagnostics(self):
+        """Level-2 diagnostics namespace: protection, pulses received, status."""
+        if self._diagnostics_ns is None:
+            from mks_servo.namespaces import DiagnosticsNamespace
+            self._diagnostics_ns = DiagnosticsNamespace(self)
+        return self._diagnostics_ns

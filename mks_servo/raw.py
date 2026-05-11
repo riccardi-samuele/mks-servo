@@ -385,3 +385,22 @@ def encoder_counts_to_degrees(counts: int) -> float:
 def degrees_to_pulses(deg: float, microsteps: int = 16) -> int:
     return int(round(deg * NEMA17_FULL_STEPS * microsteps / 360))
 
+
+from mks_servo.exceptions import ProfileError  # noqa: E402
+
+
+DRIVER_REGISTRY: dict[str, type] = {
+    "servo42d": RawDriver,
+}
+
+
+def make_raw_driver(model: str, **kwargs) -> "RawDriver":
+    """Factory: look up the driver class for `model` and instantiate it.
+
+    Raises ProfileError if the model is not registered.
+    """
+    cls = DRIVER_REGISTRY.get(model)
+    if cls is None:
+        raise ProfileError(f"unknown driver model: {model!r}")
+    return cls(**kwargs)
+

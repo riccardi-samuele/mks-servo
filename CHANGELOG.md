@@ -2,15 +2,90 @@
 
 All notable changes to mks-servo are documented here.
 
-## [Unreleased]
+> Note on ordering: v0.2.1 and v0.3.0/v0.3.1 were developed on parallel
+> branches off v0.2.0 and later merged together. They are listed
+> newest-version-first below; v0.3.1's tree contains the v0.2.1 multi-motor
+> HIL work as well.
+
+## [0.3.1] — 2026-05-11 (Level-2 + CharacterizationSuite HIL-validated)
+
+### Added
+- `tests/hil/test_characterize.py` — hardware-in-the-loop coverage of
+  `CharacterizationSuite`: P1/P3/P5/S2 sub-tests (run with reduced parameters),
+  `update_profile()`, and a full `run_mvp()` end-to-end run.
+- `tests/hil/test_namespaces.py` — HIL coverage of `motor.diagnostics`
+  (`status_text`, `protection_latched`, `pulses_received`, `release_protection`)
+  and the safe part of `motor.advanced` (`set_respond_active`).
 
 ### Fixed
 - `Motor.attach()` now retries each profile-config write (`set_work_mode`,
   `set_subdivision`, `set_work_current_ma`) once after a 0.3 s settle if it
-  hits a `CommTimeout` — the firmware can drop the reply to a command issued
-  right after a fresh connection (observed when re-opening the port while the
-  motor is still coasting from a previous session). HIL-found on dev/v0.3.0,
-  backported here for branch consistency.
+  hits a `CommTimeout`. The MKS firmware can drop the reply to a command
+  issued right after a fresh connection — observed when re-opening the port
+  while the motor is still coasting down from a previous session. (HIL.)
+
+### Notes
+- `motor.advanced.set_baud()` and `set_slave_addr()` are intentionally not
+  HIL-tested: they rewrite driver flash and would break the live connection;
+  a failure mid-write could leave the driver on an unknown baud/address. They
+  remain covered by the mocked unit tests.
+- Known limitation (not changed in this patch release): `run_s2_acceleration`'s
+  default sampling window (`samples_per_acc=50 × 0.01 s ≈ 0.5 s`) toward a
+  2000 RPM target is too short for this 12 V rig (~1350 RPM ceiling) to reach
+  95% of target, so `time_to_target_ms` comes back `[None, …]`. The result is
+  still well-formed; `max_observed_rpm` is populated. Revisiting the S2
+  defaults is a v0.4 task.
+
+## [0.3.0] — 2026-05-10 (Level-2 namespaces + CharacterizationSuite)
+
+### Added
+- `motor.advanced` namespace: `set_baud`, `set_slave_addr`,
+  `set_respond_active`, `save_speed_mode_state`. Driver-flash-modifying
+  ops grouped here for discoverability.
+- `motor.diagnostics` namespace: `protection_latched`, `release_protection`,
+  `pulses_received`, `status_text`. Read-only health + protection clears.
+- `CharacterizationSuite(motor)` — programmatic empirical tests.
+  `run_mvp()` runs P1/P3/P5/S2 and returns a typed `SuiteResult`.
+  `update_profile()` writes the precision sigma/peak and the max observed
+  RPM into `profile.characterization`.
+- CLI `mks-servo characterize <profile> [--suite=mvp|full]
+  [--update-profile] [--save] [--port X]`.
+- `DRIVER_REGISTRY` + `make_raw_driver(model, **kwargs)` factory in `raw.py`
+  — extensibility hook so future SERVO57D support is a registry entry.
+- `examples/characterize_motor.py`.
+- `docs/characterization.md` — usage reference for the suite.
+
+### Changed
+- `Motor.attach()` and `MotorBus.add()`/`scan()` now go through
+  `make_raw_driver(model, ...)` instead of constructing `RawDriver`
+  directly. Functionally identical for v0.3 users; opens the door to
+  per-model raw classes in v0.4+.
+
+### Fixed (backported from v0.1.1, HIL-validated on real SERVO42D hardware)
+- `Motor.attach()` opens the serial transport for an internally-owned
+  `RawDriver` (it does not auto-open in `__init__`) — the first command after
+  attach previously failed with "transport not open".
+- `Motor.attach()` energises the motor (Servo-style semantics); `detach()`
+  still disables it. Without this, `motor.write()` commands were accepted by
+  the driver but the motor stayed physically inert.
+- `Motor.write(timeout=None)` / `Motor.wait_until_idle()` no longer forward
+  `timeout=None` into `RawDriver.wait_until_idle`, which crashed its deadline
+  arithmetic.
+- `RawDriver.wait_until_idle` tolerates the SERVO42D firmware V1.0.6 quirk
+  where status (cmd 0xF1) latches in `SPEED_DOWN` indefinitely after a
+  closed-loop move: it now also accepts `speed_rpm == 0` for N consecutive
+  reads as the idle signal, requires observed motion or `min_warmup_s` before
+  counting zero-streaks (so a no-op move doesn't return prematurely), defaults
+  to a 0.2s poll interval, and tolerates one `CommTimeout` per iteration
+  (truncated frames during motion).
+- `Motor.set_origin(soft=False)` adds a 0.2s settle pause + one retry on
+  `CommTimeout` (cmd 0x92 occasionally times out right after a motion).
+
+### Out of scope (deferred)
+- `motor.homing.*` and `motor.io.*` namespaces (v0.4).
+- Sphinx + readthedocs (v1.0).
+- Real SERVO57D driver implementation (registry hook only in v0.3).
+- Velocity mode on `Motor` (use `motor.raw.move_speed` for now).
 
 ## [0.2.1] — 2026-05-11 (Multi-motor layer HIL-validated)
 
@@ -29,26 +104,6 @@ All notable changes to mks-servo are documented here.
   reads from two `RawDriver` handles on one transport produced no corrupt
   frames). `MotorBus.add()`/`remove()`/`scan()`/context-manager teardown all
   behave on hardware.
-
-### Fixed (backported from v0.1.1, HIL-validated on real SERVO42D hardware)
-- `Motor.attach()` now opens the serial transport for an internally-owned
-  `RawDriver` (it does not auto-open in `__init__`) — the first command after
-  attach previously failed with "transport not open".
-- `Motor.attach()` now energises the motor (Servo-style semantics); `detach()`
-  still disables it. Without this, `motor.write()` commands were accepted by
-  the driver but the motor stayed physically inert.
-- `Motor.write(timeout=None)` / `Motor.wait_until_idle()` no longer forward
-  `timeout=None` into `RawDriver.wait_until_idle`, which crashed its deadline
-  arithmetic.
-- `RawDriver.wait_until_idle` tolerates the SERVO42D firmware V1.0.6 quirk
-  where status (cmd 0xF1) latches in `SPEED_DOWN` indefinitely after a
-  closed-loop move: it now also accepts `speed_rpm == 0` for N consecutive
-  reads as the idle signal, requires observed motion or `min_warmup_s` before
-  counting zero-streaks (so a no-op move doesn't return prematurely), defaults
-  to a 0.2s poll interval, and tolerates one `CommTimeout` per iteration
-  (truncated frames during motion).
-- `Motor.set_origin(soft=False)` adds a 0.2s settle pause + one retry on
-  `CommTimeout` (cmd 0x92 occasionally times out right after a motion).
 
 ## [0.2.0] — 2026-05-10 (Multi-motor + raw promoted)
 

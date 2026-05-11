@@ -106,10 +106,10 @@ def test_attach_opens_internally_owned_raw_driver(base_profile, monkeypatch):
     auto-open in __init__, so the first transact would otherwise fail."""
     from unittest.mock import MagicMock
     fake_raw = MagicMock()
-    fake_raw_cls = MagicMock(return_value=fake_raw)
-    monkeypatch.setattr("mks_servo.motor.RawDriver", fake_raw_cls)
+    fake_factory = MagicMock(return_value=fake_raw)
+    monkeypatch.setattr("mks_servo.motor.make_raw_driver", fake_factory)
     base_profile.transport.port = "/dev/ttyUSB0"
     m = Motor(base_profile)  # no raw= → Motor builds + owns one
     m.attach()
-    assert fake_raw_cls.called
+    assert fake_factory.called
     fake_raw.open.assert_called_once()

@@ -8,7 +8,7 @@ from typing import Iterator, Union, Optional
 from mks_servo.transport import SharedTransport
 from mks_servo.profile import Profile
 from mks_servo.motor import Motor
-from mks_servo.raw import RawDriver
+from mks_servo.raw import RawDriver, make_raw_driver
 
 
 @dataclass
@@ -75,7 +75,9 @@ class MotorBus:
             prof = Profile.load(str(profile))
         prof.validate()
 
-        raw = RawDriver(addr=prof.driver.slave_addr, transport=self._transport)
+        raw = make_raw_driver(prof.driver.model,
+                              addr=prof.driver.slave_addr,
+                              transport=self._transport)
         motor = Motor(prof, raw=raw)
         motor.attach()
         self._motors.append(motor)
@@ -113,7 +115,8 @@ class MotorBus:
 
         entries: list[BusEntry] = []
         for addr in addr_range:
-            raw = RawDriver(addr=addr, transport=self._transport, timeout=timeout)
+            raw = make_raw_driver("servo42d",
+                                  addr=addr, transport=self._transport, timeout=timeout)
             try:
                 cfg = raw.read_all_config()
             except CommTimeout:

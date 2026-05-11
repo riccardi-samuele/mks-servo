@@ -69,6 +69,28 @@ mks-servo bus discover --port /dev/ttyUSB0 --range 1-16 --create-profiles
 
 See `examples/dual_motor_bus.py` and `docs/multi-motor.md` for more.
 
+### Characterization (v0.3.0+)
+
+Run empirical tests and persist results into the profile:
+
+```bash
+mks-servo characterize wrist --suite=mvp --update-profile --save
+```
+
+Or programmatically:
+
+```python
+from mks_servo import Motor, CharacterizationSuite
+
+with Motor.from_profile("wrist") as m:
+    suite = CharacterizationSuite(m)
+    suite.run_mvp()
+    suite.update_profile()
+    m.profile.save()
+```
+
+See `examples/characterize_motor.py` and `docs/characterization.md`.
+
 ## Project layout
 
 - `mks_servo/` — library source
@@ -84,6 +106,8 @@ See `examples/dual_motor_bus.py` and `docs/multi-motor.md` for more.
 
 - [Profile schema reference](docs/profiles.md)
 - [Multi-motor on one bus](docs/multi-motor.md)
+- [Characterization](docs/characterization.md)
+- [v0.3.0 design spec](docs/superpowers/specs/2026-05-10-mks-servo-v0.3.0-design.md)
 - [v0.1.0 design spec](docs/superpowers/specs/2026-05-09-mks-servo-v0.1.0-design.md)
 - [v0.2.0 design spec](docs/superpowers/specs/2026-05-10-mks-servo-v0.2.0-design.md)
 - [Long-term vision](docs/superpowers/specs/2026-05-09-mks-servo-vision.md)
