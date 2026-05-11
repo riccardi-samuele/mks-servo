@@ -200,11 +200,24 @@ class Motor:
         self.detach()
 
     # ─── Internals ─────────────────────────────────────────────────────
+    @staticmethod
+    def _retry_on_comm_timeout(fn, *args, _settle_s: float = 0.3, **kwargs):
+        """Call fn(*args, **kwargs); on a single CommTimeout, settle briefly and
+        retry once. The MKS firmware can drop the reply to the first command(s)
+        after a fresh connection (USB-serial adapter not yet settled, or the
+        motor still decelerating from a previous session). One retry makes
+        attach() robust without callers needing their own sleeps."""
+        try:
+            return fn(*args, **kwargs)
+        except CommTimeout:
+            _time.sleep(_settle_s)
+            return fn(*args, **kwargs)
+
     def _apply_profile_config(self) -> None:
         c = self.profile.config
-        self.raw.set_work_mode(c.mode)
-        self.raw.set_subdivision(c.microsteps)
-        self.raw.set_work_current_ma(c.work_current_ma)
+        self._retry_on_comm_timeout(self.raw.set_work_mode, c.mode)
+        self._retry_on_comm_timeout(self.raw.set_subdivision, c.microsteps)
+        self._retry_on_comm_timeout(self.raw.set_work_current_ma, c.work_current_ma)
 
     def _require_attached(self) -> None:
         if not self._attached:
