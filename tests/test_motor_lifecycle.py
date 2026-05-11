@@ -1,6 +1,6 @@
 import pytest
 from mks_servo.motor import Motor
-from mks_servo.exceptions import MotorNotAttached
+from mks_servo.exceptions import CommTimeout, MotorNotAttached
 
 
 def test_motor_constructor_does_not_open_transport(base_profile, mock_raw):
@@ -17,6 +17,29 @@ def test_attach_calls_into_raw_to_apply_config(base_profile, mock_raw):
     mock_raw.set_work_mode.assert_called_once_with(base_profile.config.mode)
     mock_raw.set_subdivision.assert_called_once_with(base_profile.config.microsteps)
     mock_raw.set_work_current_ma.assert_called_once_with(base_profile.config.work_current_ma)
+
+
+def test_attach_retries_config_command_once_on_comm_timeout(base_profile, mock_raw, mocker):
+    """HIL regression: the MKS firmware can drop the reply to a command issued
+    right after a fresh connection (adapter not settled / motor still coasting).
+    attach() must settle briefly and retry once rather than blow up."""
+    mock_raw.set_work_current_ma.side_effect = [CommTimeout("truncated frame"), True]
+    sleep = mocker.patch("mks_servo.motor._time.sleep")
+    m = Motor(base_profile, raw=mock_raw)
+    m.attach()  # must not raise
+    assert m._attached is True
+    assert mock_raw.set_work_current_ma.call_count == 2
+    sleep.assert_any_call(0.3)
+
+
+def test_attach_propagates_comm_timeout_if_retry_also_fails(base_profile, mock_raw, mocker):
+    """One retry only — a persistently dead link still surfaces the error."""
+    mock_raw.set_work_mode.side_effect = CommTimeout("link down")
+    mocker.patch("mks_servo.motor._time.sleep")
+    m = Motor(base_profile, raw=mock_raw)
+    with pytest.raises(CommTimeout):
+        m.attach()
+    assert m._attached is False
 
 
 def test_attach_is_idempotent(base_profile, mock_raw):
@@ -66,43 +89,27 @@ def test_model_property_reads_from_profile(base_profile, mock_raw):
     assert m.model == "servo42d"
 
 
-def test_attach_opens_internally_owned_raw_driver(monkeypatch, tmp_path):
-    """Regression: Motor.from_profile + attach() must open the serial transport.
-    Pre-fix bug: RawDriver was constructed but open() never called, so the
-    first transact failed with 'serial not open'."""
-    import textwrap
-    from unittest.mock import MagicMock
-    from mks_servo.motor import Motor
-
-    fake_serial_cls = MagicMock()
-    fake_serial = MagicMock()
-    fake_serial.read.return_value = b"\xfb\x01\x82\x01\x7f"  # head + addr + code + data + chk
-    fake_serial_cls.return_value = fake_serial
-    monkeypatch.setattr("mks_servo.raw.serial.Serial", fake_serial_cls)
-
-    p = tmp_path / "wrist.yaml"
-    p.write_text(textwrap.dedent("""
-        schema_version: 1
-        id: wrist
-        driver:
-          model: servo42d
-          slave_addr: 1
-        transport:
-          port: /dev/ttyUSB0
-          baud: 38400
-          timeout_s: 1.0
-    """).lstrip())
-
-    # Patch transact to simulate driver replies (bypass real frame parsing)
-    monkeypatch.setattr(
-        "mks_servo.raw.transact",
-        lambda *a, **kw: (1, kw.get("code", a[2] if len(a) > 2 else 0), b"\x01"),
-    )
-
-    m = Motor.from_profile(str(p))
+def test_attach_auto_enables_motor(base_profile, mock_raw):
+    """HIL regression: attach() must energise the motor (Servo-style), else
+    motor.write() commands are accepted by the driver but the motor stays
+    inert. detach() still disables."""
+    m = Motor(base_profile, raw=mock_raw)
     m.attach()
-    # If attach() forgot to open the transport, fake_serial_cls would not have
-    # been called and the first transact would have failed.
-    assert fake_serial_cls.called
-    assert m._attached is True
+    mock_raw.enable.assert_called_with(True)
     m.detach()
+    mock_raw.enable.assert_called_with(False)
+
+
+def test_attach_opens_internally_owned_raw_driver(base_profile, monkeypatch):
+    """HIL regression: when Motor owns the RawDriver (created from the
+    profile transport), attach() must call .open() on it — RawDriver does not
+    auto-open in __init__, so the first transact would otherwise fail."""
+    from unittest.mock import MagicMock
+    fake_raw = MagicMock()
+    fake_raw_cls = MagicMock(return_value=fake_raw)
+    monkeypatch.setattr("mks_servo.motor.RawDriver", fake_raw_cls)
+    base_profile.transport.port = "/dev/ttyUSB0"
+    m = Motor(base_profile)  # no raw= → Motor builds + owns one
+    m.attach()
+    assert fake_raw_cls.called
+    fake_raw.open.assert_called_once()

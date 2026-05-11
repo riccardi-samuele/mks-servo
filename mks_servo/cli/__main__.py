@@ -28,6 +28,15 @@ profile.add_command(validate_cmd, name="validate")
 profile.add_command(show_cmd, name="show")
 
 
+@cli.group()
+def bus() -> None:
+    """Operations on the RS485 bus (multi-motor)."""
+
+
+from mks_servo.cli.bus_cmds import discover_cmd  # noqa: E402
+bus.add_command(discover_cmd, name="discover")
+
+
 def main() -> int:
     return cli(standalone_mode=True)
 

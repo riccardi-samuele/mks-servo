@@ -28,7 +28,7 @@ from benchmarks._common import banner, load_config, make_run_dir
 
 
 def _setup(m: Motor) -> None:
-    m._raw.set_work_mode(WorkMode.SR_vFOC)
+    m.raw.set_work_mode(WorkMode.SR_vFOC)
     m.microsteps = 16
     m.enable(True)
 
@@ -43,10 +43,10 @@ def run_p1(m: Motor, run_dir: Path, iters: int = 100) -> None:
     rows = []
     for i in range(iters):
         rand_deg = random.uniform(-180.0, 180.0)
-        m._raw.move_absolute_axis(degrees_to_encoder_counts(rand_deg), rpm=300, acc=10)
+        m.raw.move_absolute_axis(degrees_to_encoder_counts(rand_deg), rpm=300, acc=10)
         m.wait_until_idle(timeout=10.0)
 
-        m._raw.move_absolute_axis(target_counts, rpm=300, acc=10)
+        m.raw.move_absolute_axis(target_counts, rpm=300, acc=10)
         m.wait_until_idle(timeout=10.0)
 
         measured_counts = m.position_counts
@@ -90,7 +90,7 @@ def run_p3(m: Motor, run_dir: Path, iters: int = 20) -> None:
     csv_path = run_dir / "p3_error_vs_speed.csv"
     rows = []
 
-    m._raw.move_absolute_axis(0, rpm=300, acc=10)
+    m.raw.move_absolute_axis(0, rpm=300, acc=10)
     m.wait_until_idle(timeout=15.0)
 
     for rpm in rpms:
@@ -98,7 +98,7 @@ def run_p3(m: Motor, run_dir: Path, iters: int = 20) -> None:
             origin = m.position_counts
             target = origin + degrees_to_encoder_counts(360.0)
             acc = 10 if rpm <= 800 else 50
-            m._raw.move_absolute_axis(target, rpm=rpm, acc=acc)
+            m.raw.move_absolute_axis(target, rpm=rpm, acc=acc)
             m.wait_until_idle(timeout=20.0)
             time.sleep(0.05)
             measured = m.position_counts
@@ -144,11 +144,11 @@ def run_p5(m: Motor, run_dir: Path, iters: int = 1) -> None:
 
     origin = m.position_counts
     target = origin + degrees_to_encoder_counts(360.0)
-    m._raw.move_absolute_axis(target, rpm=60, acc=2)
+    m.raw.move_absolute_axis(target, rpm=60, acc=2)
     t0 = time.monotonic()
     deadline = t0 + 15.0
     while True:
-        err_units = m._raw.read_angle_error()
+        err_units = m.raw.read_angle_error()
         err_deg = err_units * 360.0 / 51200
         meas_deg = encoder_counts_to_degrees(m.position_counts - origin)
         rows.append({"t_ms": int((time.monotonic() - t0) * 1000),
@@ -191,7 +191,7 @@ def run_v1(m: Motor, run_dir: Path, iters: int = 1) -> None:
     confirm("Mark the shaft position (e.g. tape arrow). Then press ENTER to start.")
     origin = m.position_counts
     target = origin + 10 * 0x4000
-    m._raw.move_absolute_axis(target, rpm=180, acc=20)
+    m.raw.move_absolute_axis(target, rpm=180, acc=20)
     m.wait_until_idle(timeout=30.0)
     measured_counts = m.position_counts - origin
     measured_turns = measured_counts / 0x4000

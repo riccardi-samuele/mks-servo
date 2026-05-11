@@ -9,13 +9,16 @@ from mks_servo.exceptions import (
     ProfileError, LimitExceeded, MotorNotAttached,
 )
 from mks_servo.raw import RawDriver, MotorStatus
+from mks_servo.transport import SharedTransport
 from mks_servo.profile import Profile
 from mks_servo.motor import Motor
+from mks_servo.bus import MotorBus, BusEntry
 
 __version__ = "0.1.0"
 
 __all__ = [
-    "Motor", "Profile", "RawDriver", "MotorStatus",
+    "Motor", "Profile", "MotorBus", "BusEntry",
+    "RawDriver", "MotorStatus", "SharedTransport",
     "WorkMode", "Direction", "BaudRate", "OpCode",
     "MKSError", "CommTimeout", "ChecksumError", "ProtocolError",
     "MotorFault", "CalibrationFailed",

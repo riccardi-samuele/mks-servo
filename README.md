@@ -47,6 +47,28 @@ pip install -e .[dev,bench]
            print(f"target={angle}°  read={m.read():+.2f}°")
    ```
 
+### Multi-motor (v0.2.0+)
+
+Coordinate N motors on the same RS485 bus:
+
+```python
+from mks_servo import MotorBus
+
+with MotorBus("/dev/ttyUSB0", baud=38400) as bus:
+    wrist = bus.add("./profiles/wrist.yaml")    # slave_addr=1
+    elbow = bus.add("./profiles/elbow.yaml")    # slave_addr=2
+    wrist.write(45)
+    elbow.write(90)
+```
+
+Discover what's on the bus and auto-generate profiles for each driver:
+
+```bash
+mks-servo bus discover --port /dev/ttyUSB0 --range 1-16 --create-profiles
+```
+
+See `examples/dual_motor_bus.py` and `docs/multi-motor.md` for more.
+
 ## Project layout
 
 - `mks_servo/` — library source
@@ -61,7 +83,9 @@ pip install -e .[dev,bench]
 ## Documentation
 
 - [Profile schema reference](docs/profiles.md)
+- [Multi-motor on one bus](docs/multi-motor.md)
 - [v0.1.0 design spec](docs/superpowers/specs/2026-05-09-mks-servo-v0.1.0-design.md)
+- [v0.2.0 design spec](docs/superpowers/specs/2026-05-10-mks-servo-v0.2.0-design.md)
 - [Long-term vision](docs/superpowers/specs/2026-05-09-mks-servo-vision.md)
 - [HIL test report (2026-05-09)](docs/reports/2026-05-09-test-report.md)
 - [MKS SERVO42D firmware manual](https://github.com/makerbase-mks/MKS-SERVO42D)

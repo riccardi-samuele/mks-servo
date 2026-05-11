@@ -37,14 +37,14 @@ def _make_motor(cfg, addr_override: int | None = None) -> Motor:
 def run_c1(cfg, run_dir: Path) -> None:
     banner("C1: full config diff across power-cycle")
     with _make_motor(cfg) as m:
-        cfg_pre = m._raw.read_all_config()
+        cfg_pre = m.raw.read_all_config()
         (run_dir / "c1_pre.json").write_text(json.dumps(
             {**{k: v for k, v in cfg_pre.items() if k != "raw"},
              "raw_hex": cfg_pre["raw"].hex()}, indent=2))
     confirm("Disconnect 12V from the motor, wait 3 seconds, reconnect.")
     time.sleep(0.5)
     with _make_motor(cfg) as m:
-        cfg_post = m._raw.read_all_config()
+        cfg_post = m.raw.read_all_config()
         (run_dir / "c1_post.json").write_text(json.dumps(
             {**{k: v for k, v in cfg_post.items() if k != "raw"},
              "raw_hex": cfg_post["raw"].hex()}, indent=2))
@@ -66,10 +66,10 @@ def run_c2(cfg, run_dir: Path) -> None:
     banner("C2: calibration persists")
     confirm("Mark the shaft. Then press ENTER to do 10 turns BEFORE power-cycle.")
     with _make_motor(cfg) as m:
-        m._raw.set_work_mode(WorkMode.SR_vFOC)
+        m.raw.set_work_mode(WorkMode.SR_vFOC)
         m.enable(True)
         origin = m.position_counts
-        m._raw.move_absolute_axis(origin + 10 * 0x4000, rpm=180, acc=20)
+        m.raw.move_absolute_axis(origin + 10 * 0x4000, rpm=180, acc=20)
         m.wait_until_idle(timeout=30.0)
         end_pre = m.position_counts
         turns_pre = (end_pre - origin) / 0x4000
@@ -78,10 +78,10 @@ def run_c2(cfg, run_dir: Path) -> None:
     confirm("Disconnect 12V, wait 3 s, reconnect. Pointer should be back near start mark.")
     time.sleep(0.5)
     with _make_motor(cfg) as m:
-        m._raw.set_work_mode(WorkMode.SR_vFOC)
+        m.raw.set_work_mode(WorkMode.SR_vFOC)
         m.enable(True)
         origin = m.position_counts
-        m._raw.move_absolute_axis(origin + 10 * 0x4000, rpm=180, acc=20)
+        m.raw.move_absolute_axis(origin + 10 * 0x4000, rpm=180, acc=20)
         m.wait_until_idle(timeout=30.0)
         end_post = m.position_counts
         turns_post = (end_post - origin) / 0x4000
@@ -103,13 +103,13 @@ def run_c3(cfg, run_dir: Path) -> None:
     with _make_motor(cfg) as m:
         m.work_current_ma = target_current
         m.microsteps = target_subdiv
-        m._raw._txn(OpCode.SET_SLAVE_ADDR, bytes([target_addr]), expect_payload_len=1)
+        m.raw._txn(OpCode.SET_SLAVE_ADDR, bytes([target_addr]), expect_payload_len=1)
     confirm("Disconnect 12V, wait 3 s, reconnect.")
     time.sleep(0.5)
 
     try:
         with _make_motor(cfg, addr_override=target_addr) as m:
-            cfg_post = m._raw.read_all_config()
+            cfg_post = m.raw.read_all_config()
         ok = (cfg_post["current_ma"] == target_current
               and cfg_post["subdivision"] == target_subdiv
               and cfg_post["slave_addr"] == target_addr)
@@ -121,7 +121,7 @@ def run_c3(cfg, run_dir: Path) -> None:
         banner("C3 cleanup: restoring slave address")
         try:
             with _make_motor(cfg, addr_override=target_addr) as m:
-                m._raw._txn(OpCode.SET_SLAVE_ADDR, bytes([original_addr]), expect_payload_len=1)
+                m.raw._txn(OpCode.SET_SLAVE_ADDR, bytes([original_addr]), expect_payload_len=1)
             print(f"  restored slave addr -> {original_addr}")
         except Exception as e:
             print(f"  failed to restore addr: {e}\n  Manually set UartAddr={original_addr} from menu.")

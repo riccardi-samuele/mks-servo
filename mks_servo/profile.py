@@ -456,6 +456,27 @@ Profile.from_driver = classmethod(_profile_from_driver)  # type: ignore[assignme
 
 
 # ---------------------------------------------------------------------------
+# Profile.snapshot_from(motor) — Task 10: refresh config from connected driver.
+# ---------------------------------------------------------------------------
+
+def _profile_snapshot_from(self, motor) -> None:
+    """Read motor.raw.read_all_config() and overwrite this profile's `config:`
+    section. The driver's `slave_addr` is also refreshed. Other sections
+    (limits, mechanical, characterization) are NOT touched. Caller invokes
+    save() to persist."""
+    info = motor.raw.read_all_config()
+    self.config.mode = info["mode"]
+    self.config.work_current_ma = int(info["current_ma"])
+    self.config.microsteps = int(info["subdivision"])
+    self.config.hold_current_pct = (int(info["hold_current_pct_idx"]) + 1) * 10
+    self.config.direction = Direction.CW if info["dir_cw"] else Direction.CCW
+    self.driver.slave_addr = int(info["slave_addr"])
+
+
+Profile.snapshot_from = _profile_snapshot_from  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
 # Profile.save() — Task 10: write profile back to YAML preserving comments.
 # ---------------------------------------------------------------------------
 
