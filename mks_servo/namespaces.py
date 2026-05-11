@@ -24,7 +24,14 @@ class AdvancedNamespace:
 
     def set_baud(self, baud: int) -> None:
         """Cmd 0x8A: change the serial baud rate. Persists in driver flash.
-        Caller is responsible for reconnecting at the new baud."""
+        Caller is responsible for reconnecting at the new baud.
+
+        .. warning::
+           **Experimental — not validated on hardware.** This call rewrites
+           driver flash and was deliberately excluded from the HIL test suite
+           to avoid bricking development rigs. Behavior is believed correct
+           from the protocol spec but may change in a future release.
+        """
         self._motor._require_attached()
         if hasattr(self._motor.raw, "set_baud"):
             self._motor.raw.set_baud(baud)
@@ -43,7 +50,14 @@ class AdvancedNamespace:
 
     def set_slave_addr(self, addr: int) -> None:
         """Cmd 0x8B: change slave address. Persists in flash.
-        The profile and the underlying RawDriver's addr are both updated."""
+        The profile and the underlying RawDriver's addr are both updated.
+
+        .. warning::
+           **Experimental — not validated on hardware.** Rewrites driver
+           flash; excluded from HIL tests for the same reason as
+           :meth:`set_baud`. Use with care and verify with a quick scan
+           afterwards.
+        """
         self._motor._require_attached()
         addr = int(addr)
         if hasattr(self._motor.raw, "set_slave_addr"):
@@ -70,7 +84,13 @@ class AdvancedNamespace:
             )
 
     def save_speed_mode_state(self) -> None:
-        """Persist the current speed-mode setting (RawDriver method)."""
+        """Persist the current speed-mode setting (RawDriver method).
+
+        .. warning::
+           **Experimental — not validated on hardware.** Writes to driver
+           flash. Available for completeness but not exercised by the test
+           suite.
+        """
         self._motor._require_attached()
         if hasattr(self._motor.raw, "save_speed_mode_state"):
             self._motor.raw.save_speed_mode_state()

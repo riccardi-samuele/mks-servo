@@ -16,7 +16,24 @@ def test_top_level_exports():
 def test_version_string_present():
     import mks_servo
     assert hasattr(mks_servo, "__version__")
-    assert mks_servo.__version__ == "0.1.0"
+    assert mks_servo.__version__ == "0.3.1"
+
+
+def test_version_matches_pyproject():
+    """Guard against the __init__/pyproject drift that bit us pre-1.0."""
+    import sys
+    import mks_servo
+    from pathlib import Path
+
+    if sys.version_info >= (3, 11):
+        import tomllib  # type: ignore[import-not-found]
+    else:
+        import tomli as tomllib  # type: ignore[import-not-found]
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    with pyproject.open("rb") as f:
+        data = tomllib.load(f)
+    assert mks_servo.__version__ == data["project"]["version"]
 
 
 def test_motorbus_exported():

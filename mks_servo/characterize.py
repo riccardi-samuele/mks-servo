@@ -64,6 +64,21 @@ class CharacterizationSuite:
             results = suite.run_mvp()
             suite.update_profile()
             m.profile.save()
+
+    .. note::
+       **Provisional API.** The method signatures (``run_p1_precision``,
+       ``run_p3_error_vs_rpm``, ``run_p5_follow_error``,
+       ``run_s2_acceleration``, ``run_mvp``, ``run_full``,
+       ``update_profile``) are stable and will not be removed in 1.x.
+
+       Two things may still evolve:
+
+       1. **Default test parameters** (especially S2's ``samples_per_acc``
+          and ``accs``) — the current defaults are tuned for the development
+          NEMA17 rig at 12 V and have known limits at high RPM. Pass
+          explicit kwargs if you need reproducibility across versions.
+       2. **``*Result`` dataclasses** may grow new fields (additive only —
+          existing fields will not be renamed or removed).
     """
 
     def __init__(self, motor: "Motor", *, output_dir: Optional[Path] = None):
