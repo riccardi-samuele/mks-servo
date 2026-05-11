@@ -1,6 +1,6 @@
 import pytest
 from mks_servo.motor import Motor
-from mks_servo.exceptions import MotorNotAttached
+from mks_servo.exceptions import CommTimeout, MotorNotAttached
 
 
 def test_motor_constructor_does_not_open_transport(base_profile, mock_raw):
@@ -17,6 +17,29 @@ def test_attach_calls_into_raw_to_apply_config(base_profile, mock_raw):
     mock_raw.set_work_mode.assert_called_once_with(base_profile.config.mode)
     mock_raw.set_subdivision.assert_called_once_with(base_profile.config.microsteps)
     mock_raw.set_work_current_ma.assert_called_once_with(base_profile.config.work_current_ma)
+
+
+def test_attach_retries_config_command_once_on_comm_timeout(base_profile, mock_raw, mocker):
+    """HIL regression: the MKS firmware can drop the reply to a command issued
+    right after a fresh connection (adapter not settled / motor still coasting).
+    attach() must settle briefly and retry once rather than blow up."""
+    mock_raw.set_work_current_ma.side_effect = [CommTimeout("truncated frame"), True]
+    sleep = mocker.patch("mks_servo.motor._time.sleep")
+    m = Motor(base_profile, raw=mock_raw)
+    m.attach()  # must not raise
+    assert m._attached is True
+    assert mock_raw.set_work_current_ma.call_count == 2
+    sleep.assert_any_call(0.3)
+
+
+def test_attach_propagates_comm_timeout_if_retry_also_fails(base_profile, mock_raw, mocker):
+    """One retry only — a persistently dead link still surfaces the error."""
+    mock_raw.set_work_mode.side_effect = CommTimeout("link down")
+    mocker.patch("mks_servo.motor._time.sleep")
+    m = Motor(base_profile, raw=mock_raw)
+    with pytest.raises(CommTimeout):
+        m.attach()
+    assert m._attached is False
 
 
 def test_attach_is_idempotent(base_profile, mock_raw):
