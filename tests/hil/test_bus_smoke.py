@@ -10,15 +10,17 @@ def test_bus_add_motor_moves_and_reads_back(hil_bus, hil_profile):
     assert len(hil_bus) == 1
     assert motor in hil_bus
 
+    # Tolerance ≈2σ of this rig's repeatability (σ≈0.82°): "landed roughly
+    # here", not a precision check (that's what test_characterize.py does).
     motor.set_origin()
     motor.write(0)
-    assert abs(motor.read()) < 1.0
+    assert abs(motor.read()) < 1.5
 
     motor.write(45, rpm=300)
-    assert abs(motor.read() - 45.0) < 1.0
+    assert abs(motor.read() - 45.0) < 1.5
 
     motor.write(0)
-    assert abs(motor.read()) < 1.0
+    assert abs(motor.read()) < 1.5
 
 
 def test_bus_motor_shares_transport_object(hil_bus, hil_profile):
