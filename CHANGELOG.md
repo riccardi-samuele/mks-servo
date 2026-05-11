@@ -2,6 +2,16 @@
 
 All notable changes to mks-servo are documented here.
 
+## [Unreleased]
+
+### Fixed
+- `Motor.attach()` now retries each profile-config write (`set_work_mode`,
+  `set_subdivision`, `set_work_current_ma`) once after a 0.3 s settle if it
+  hits a `CommTimeout` — the firmware can drop the reply to a command issued
+  right after a fresh connection (observed when re-opening the port while the
+  motor is still coasting from a previous session). HIL-found on dev/v0.3.0,
+  backported here for branch consistency.
+
 ## [0.2.1] — 2026-05-11 (Multi-motor layer HIL-validated)
 
 ### Added
