@@ -2,6 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/mks-servo.svg)](https://pypi.org/project/mks-servo/)
 [![tests](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml/badge.svg)](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml)
+[![docs](https://readthedocs.org/projects/mks-servo/badge/?version=latest)](https://mks-servo.readthedocs.io/en/latest/)
 [![python](https://img.shields.io/pypi/pyversions/mks-servo.svg)](https://pypi.org/project/mks-servo/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
@@ -139,6 +140,11 @@ import path.
 - `docs/` — design docs, specs, characterization reports
 
 ## Documentation
+
+Full documentation site: **[mks-servo.readthedocs.io](https://mks-servo.readthedocs.io/)** —
+quickstart, full API reference, firmware-quirks FAQ.
+
+In-repo:
 
 - [CHANGELOG](CHANGELOG.md) — release notes for every version
 - [CONTRIBUTING](CONTRIBUTING.md) — dev setup, TDD workflow, HIL rig info
