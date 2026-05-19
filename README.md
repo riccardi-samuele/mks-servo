@@ -1,11 +1,16 @@
 # mks-servo
 
+[![PyPI version](https://img.shields.io/pypi/v/mks-servo.svg)](https://pypi.org/project/mks-servo/)
 [![tests](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml/badge.svg)](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml)
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
+[![python](https://img.shields.io/pypi/pyversions/mks-servo.svg)](https://pypi.org/project/mks-servo/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
 Python library for MKS SERVO42D RS485 stepper drivers (NEMA17 / NEMA23 form
 factors), with a Servo-style high-level API and per-motor YAML profiles.
+
+```bash
+pip install mks-servo
+```
 
 ## Why
 
