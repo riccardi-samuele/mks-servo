@@ -45,4 +45,4 @@ levels, and a forced-error recovery path all green across a five-phase soak.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](https://github.com/sammyriccardi/mks-servo/blob/master/LICENSE).
+Apache License 2.0 — see [LICENSE](https://github.com/riccardi-samuele/mks-servo/blob/master/LICENSE).

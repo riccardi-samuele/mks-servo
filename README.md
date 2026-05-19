@@ -1,6 +1,6 @@
 # mks-servo
 
-[![tests](https://github.com/sammyriccardi/mks-servo/actions/workflows/test.yml/badge.svg)](https://github.com/sammyriccardi/mks-servo/actions/workflows/test.yml)
+[![tests](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml/badge.svg)](https://github.com/riccardi-samuele/mks-servo/actions/workflows/test.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
@@ -21,10 +21,14 @@ read angle" level. `mks-servo` does:
 
 ## Install
 
-Pre-1.0 — not yet on PyPI. Install from source:
+```bash
+pip install mks-servo
+```
+
+For development:
 
 ```bash
-git clone https://github.com/sammyriccardi/mks-servo.git
+git clone https://github.com/riccardi-samuele/mks-servo.git
 cd mks-servo
 pip install -e ".[dev,bench]"      # quote the extras; zsh/bash both need it
 ```
@@ -126,7 +130,7 @@ import path.
   - `raw.py`, `protocol.py`, `constants.py`, `exceptions.py` — Level 3 + framing
   - `cli/` — `mks-servo` command-line tool
 - `benchmarks/` — characterization scripts (CSV + PNG output under `results/<timestamp>/`)
-- `tests/` — pytest test suite (~312 mocked tests + an opt-in HIL suite under `tests/hil/`)
+- `tests/` — pytest test suite (315 mocked tests + an opt-in HIL suite under `tests/hil/`)
 - `docs/` — design docs, specs, characterization reports
 
 ## Documentation
@@ -146,12 +150,14 @@ import path.
 
 ## Status
 
-**Pre-1.0 (currently 0.3.1).** The Level 0 / 1 / 3 surface is HIL-validated
-and the API is stable. Level 2 has two corners explicitly marked
-*experimental* in their docstrings (flash-rewriting calls deliberately
-excluded from the HIL suite). The 1.0 release is gated on a soak test, full
-Sphinx docs, and PyPI publication — see `docs/superpowers/specs/` for the
-roadmap.
+**1.0.0 — Production/Stable** (released 2026-05-20). HIL-validated on a real
+NEMA17 + MKS SERVO42D + 12 V rig: 22 hardware tests + 315 mocked tests +
+five-phase soak (1400 moves in 10 min, 0 failures, drift +0.00°).
+
+Level 0/1/3 are fully HIL-validated. Level 2 has three calls
+(`AdvancedNamespace.set_baud`/`set_slave_addr`/`save_speed_mode_state`)
+marked *experimental* in their docstrings — they rewrite driver flash and
+were intentionally kept outside the HIL suite to avoid bricking dev rigs.
 
 ## License
 
