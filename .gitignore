@@ -7,3 +7,5 @@ results/
 .pytest_cache/
 build/
 dist/
+profiles/
+

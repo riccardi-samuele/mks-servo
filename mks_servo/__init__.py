@@ -18,7 +18,7 @@ from mks_servo.characterize import (
     CharacterizationSuite, SuiteResult, P1Result, P3Result, P5Result, S2Result,
 )
 
-__version__ = "0.3.1"
+__version__ = "1.0.0"
 
 __all__ = [
     "Motor", "Profile", "MotorBus", "BusEntry",

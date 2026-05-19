@@ -7,7 +7,12 @@ All notable changes to mks-servo are documented here.
 > newest-version-first below; v0.3.1's tree contains the v0.2.1 multi-motor
 > HIL work as well.
 
-## [Unreleased] — heading toward 1.0
+## [1.0.0] — 2026-05-19 (Publishable release)
+
+### Bumped
+- `Development Status :: 5 - Production/Stable` (was Beta).
+- `pyproject.toml` / `mks_servo.__version__` → `1.0.0`.
+
 
 ### Added
 - Apache 2.0 license + `NOTICE` file; PEP 639 SPDX metadata in

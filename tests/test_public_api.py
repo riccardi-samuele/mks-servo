@@ -16,7 +16,7 @@ def test_top_level_exports():
 def test_version_string_present():
     import mks_servo
     assert hasattr(mks_servo, "__version__")
-    assert mks_servo.__version__ == "0.3.1"
+    assert mks_servo.__version__ == "1.0.0"
 
 
 def test_version_matches_pyproject():
