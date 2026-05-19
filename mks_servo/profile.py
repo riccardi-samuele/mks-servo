@@ -255,11 +255,13 @@ def _builtin_templates_dir() -> Path:
 def _profile_load(cls, name_or_path):
     """Load a profile.
 
-    If `name_or_path` ends with .yaml/.yml AND points to an existing file,
-    that file is loaded directly. Otherwise the name is searched in:
-      1. ./profiles/<name>.yaml         (project)
-      2. ~/.config/mks-servo/profiles/<name>.yaml   (user)
-      3. <package>/profiles/_templates/<name>.yaml  (built-in)
+    If ``name_or_path`` ends with ``.yaml``/``.yml`` AND points to an
+    existing file, that file is loaded directly. Otherwise the name is
+    searched in:
+
+    1. ``./profiles/<name>.yaml`` (project)
+    2. ``~/.config/mks-servo/profiles/<name>.yaml`` (user)
+    3. ``<package>/profiles/_templates/<name>.yaml`` (built-in)
     """
     candidate = Path(str(name_or_path))
     if candidate.suffix in (".yaml", ".yml") and candidate.exists():

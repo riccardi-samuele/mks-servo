@@ -35,6 +35,12 @@ dependencies = [
 [project.optional-dependencies]
 bench = ["matplotlib>=3.7", "numpy>=1.24"]
 dev   = ["pytest>=7.4", "pytest-mock>=3.11"]
+docs  = [
+    "sphinx>=7.2",
+    "myst-parser>=2.0",
+    "furo>=2024.1",
+    "sphinx-autodoc-typehints>=1.25",
+]
 
 [project.scripts]
 mks-servo = "mks_servo.cli.__main__:main"

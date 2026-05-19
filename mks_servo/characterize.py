@@ -263,11 +263,13 @@ def _update_profile(self) -> None:
     """Write last_results into motor.profile.characterization. Does NOT save.
 
     Currently writes:
-      - precision.sigma_deg, precision.peak_deg  <- P1Result
-      - speed.max_measured_rpm                   <- S2Result
+
+    - ``precision.sigma_deg``, ``precision.peak_deg`` from ``P1Result``
+    - ``speed.max_measured_rpm`` from ``S2Result``
+
     Other fields (P3 RMS, P5 follow error) are reported but not persisted in
-    the profile schema — they're informational. last_calibrated is set
-    separately by motor.calibrate(), not here.
+    the profile schema — they're informational. ``last_calibrated`` is set
+    separately by ``motor.calibrate()``, not here.
     """
     char = self._motor.profile.characterization
     if self._last_results.p1 is not None:

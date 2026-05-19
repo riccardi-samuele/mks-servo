@@ -8,4 +8,5 @@ results/
 build/
 dist/
 profiles/
+docs/_build/
 
